@@ -1,128 +1,104 @@
-# Feature Specification: [FEATURE NAME]
+# Feature Specification: WhatsApp TUI Integration
 
-**Feature Branch**: `[###-feature-name]`  
-**Created**: [DATE]  
+**Feature Branch**: `001-whatsapp-tui-integration`  
+**Created**: 2026-04-09  
 **Status**: Draft  
-**Input**: User description: "$ARGUMENTS"
+**Input**: User description: "in Pi TUI, when I set /whatsapp it opens a menu with Login, Connect, Disconnect, Logoff. When user select Login, it show the QR code to sincronize. When select Connect, it allow the Agent to answer the message comming from socket. When select Disconnect, it block the Agent to anser the message comming from socket. Logoff delete the credentials. Allow Numbers, show the list of numbers that will be considered by the messager receiver."
 
 ## User Scenarios & Testing *(mandatory)*
 
-<!--
-  IMPORTANT: User stories should be PRIORITIZED as user journeys ordered by importance.
-  Each user story/journey must be INDEPENDENTLY TESTABLE - meaning if you implement just ONE of them,
-  you should still have a viable MVP (Minimum Viable Product) that delivers value.
-  
-  Assign priorities (P1, P2, P3, etc.) to each story, where P1 is the most critical.
-  Think of each story as a standalone slice of functionality that can be:
-  - Developed independently
-  - Tested independently
-  - Deployed independently
-  - Demonstrated to users independently
--->
+### User Story 1 - Initial Setup & Pairing (Priority: P1)
 
-### User Story 1 - [Brief Title] (Priority: P1)
+As a Software Engineer using Pi TUI, I want to connect my WhatsApp account so that the AI Agent can assist me with messages directly from my terminal.
 
-[Describe this user journey in plain language]
+**Why this priority**: High. This is the foundational step for the entire integration. Without pairing, no other feature works.
 
-**Why this priority**: [Explain the value and why it has this priority level]
-
-**Independent Test**: [Describe how this can be tested independently - e.g., "Can be fully tested by [specific action] and delivers [specific value]"]
+**Independent Test**: Can be fully tested by running `/whatsapp`, selecting Login, and successfully scanning the QR code with a mobile device.
 
 **Acceptance Scenarios**:
 
-1. **Given** [initial state], **When** [action], **Then** [expected outcome]
-2. **Given** [initial state], **When** [action], **Then** [expected outcome]
+1. **Given** the user is logged out, **When** they run `/whatsapp` and select "Login", **Then** a QR code is displayed in the TUI.
+2. **Given** a QR code is displayed, **When** the user scans it with their WhatsApp app, **Then** the session is established and a success message is shown.
 
 ---
 
-### User Story 2 - [Brief Title] (Priority: P2)
+### User Story 2 - Message Handling Control (Priority: P2)
 
-[Describe this user journey in plain language]
+As a user, I want to enable or disable the AI Agent's response capability so that I can control when it interacts with my contacts.
 
-**Why this priority**: [Explain the value and why it has this priority level]
+**Why this priority**: Medium. Provides essential privacy and workflow control.
 
-**Independent Test**: [Describe how this can be tested independently]
+**Independent Test**: Toggle Connect/Disconnect and verify if the Agent replies to incoming messages from a test number.
 
 **Acceptance Scenarios**:
 
-1. **Given** [initial state], **When** [action], **Then** [expected outcome]
+1. **Given** a paired session, **When** the user selects "Connect", **Then** the Agent begins processing and answering incoming messages from allowed numbers.
+2. **Given** the Agent is connected, **When** the user selects "Disconnect", **Then** the Agent stops answering messages but remains paired.
 
 ---
 
-### User Story 3 - [Brief Title] (Priority: P3)
+### User Story 3 - Recipient Filtering (Priority: P2)
 
-[Describe this user journey in plain language]
+As a user, I want to specify which phone numbers the Agent should interact with so that it doesn't accidentally reply to unauthorized contacts.
 
-**Why this priority**: [Explain the value and why it has this priority level]
+**Why this priority**: Medium. Crucial for security and avoiding spam/unintended interactions.
 
-**Independent Test**: [Describe how this can be tested independently]
+**Independent Test**: Add a specific number to the "Allow Numbers" list and verify that only messages from that number trigger an Agent response.
 
 **Acceptance Scenarios**:
 
-1. **Given** [initial state], **When** [action], **Then** [expected outcome]
+1. **Given** the "Allow Numbers" menu, **When** a user adds a number, **Then** that number is saved to the whitelist.
+2. **Given** a message from a number NOT in the allow list, **When** the Agent is connected, **Then** the Agent ignores the message.
 
 ---
 
-[Add more user stories as needed, each with an assigned priority]
+### User Story 4 - Session Management (Priority: P3)
+
+As a user, I want to be able to log off and delete my credentials from the system for security purposes.
+
+**Why this priority**: Low (compared to pairing/connecting), but necessary for security.
+
+**Independent Test**: Select "Logoff" and verify that the next attempt to use WhatsApp requires a new login/QR scan.
+
+**Acceptance Scenarios**:
+
+1. **Given** an active session, **When** the user selects "Logoff", **Then** local credentials are deleted and the connection is terminated.
 
 ### Edge Cases
 
-<!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right edge cases.
--->
-
-- What happens when [boundary condition]?
-- How does system handle [error scenario]?
+- **Connectivity Loss**: What happens if the internet connection is lost during an active session? (Assumption: System attempts to reconnect automatically).
+- **Invalid Number Entry**: How does the system handle an incorrectly formatted phone number in the "Allow List"? (Assumption: System validates format before saving).
+- **Multiple QR Scan Attempts**: What happens if a QR code expires before scanning? (Assumption: A new QR code is generated and displayed automatically).
 
 ## Requirements *(mandatory)*
 
-<!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right functional requirements.
--->
-
 ### Functional Requirements
 
-- **FR-001**: System MUST [specific capability, e.g., "allow users to create accounts"]
-- **FR-002**: System MUST [specific capability, e.g., "validate email addresses"]  
-- **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
-- **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
-- **FR-005**: System MUST [behavior, e.g., "log all security events"]
+- **FR-001**: System MUST display a dedicated WhatsApp management menu when the `/whatsapp` command is executed.
+- **FR-002**: System MUST generate and render a QR code as ANSI blocks directly in the TUI for authentication.
+- **FR-003**: System MUST provide "Connect" and "Disconnect" states to control message interception logic.
+- **FR-004**: System MUST allow users to manage a list of "Allowed Numbers" via the TUI.
+- **FR-005**: System MUST persist session credentials securely until "Logoff" is selected.
+- **FR-006**: System MUST delete all local authentication data upon "Logoff".
 
-*Example of marking unclear requirements:*
+### Key Entities
 
-- **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
-- **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
-
-### Key Entities *(include if feature involves data)*
-
-- **[Entity 1]**: [What it represents, key attributes without implementation]
-- **[Entity 2]**: [What it represents, relationships to other entities]
+- **WhatsApp Session**: Represents the active connection, including credentials and socket status.
+- **Allow List**: A collection of phone numbers (strings) authorized for Agent interaction.
+- **Incoming Message**: Data received from the WhatsApp socket to be evaluated against the Allow List and Connection status.
 
 ## Success Criteria *(mandatory)*
 
-<!--
-  ACTION REQUIRED: Define measurable success criteria.
-  These must be technology-agnostic and measurable.
--->
-
 ### Measurable Outcomes
 
-- **SC-001**: [Measurable metric, e.g., "Users can complete account creation in under 2 minutes"]
-- **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
-- **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
-- **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+- **SC-001**: Users can successfully pair their account in a single attempt 95% of the time.
+- **SC-002**: Message filtering based on "Allow List" MUST have 100% accuracy.
+- **SC-003**: Logoff MUST result in complete removal of sensitive authentication tokens from the local environment.
+- **SC-004**: TUI menu response time for switching between Connect/Disconnect MUST be under 500ms.
 
 ## Assumptions
 
-<!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right assumptions based on reasonable defaults
-  chosen when the feature description did not specify certain details.
--->
-
-- [Assumption about target users, e.g., "Users have stable internet connectivity"]
-- [Assumption about scope boundaries, e.g., "Mobile support is out of scope for v1"]
-- [Assumption about data/environment, e.g., "Existing authentication system will be reused"]
-- [Dependency on existing system/service, e.g., "Requires access to the existing user profile API"]
+- Users have a mobile device with WhatsApp installed and a working camera for scanning.
+- The terminal supports the necessary character set/encoding if QR is rendered in-place.
+- Phone numbers in the "Allow List" are provided in international E.164 format.
+- The underlying communication layer is used to manage the socket.

@@ -1,0 +1,20 @@
+# Node.js
+node_modules/
+dist/
+build/
+*.log
+.env*
+
+# Tests
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Pi Extension Data
+.pi/extensions/whatsapp/auth/
