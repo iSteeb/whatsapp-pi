@@ -1,50 +1,64 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report:
+- Version change: [CONSTITUTION_VERSION] → 1.0.0
+- List of modified principles:
+    - [PRINCIPLE_1_NAME] → I. Object Oriented Programming (OOP)
+    - [PRINCIPLE_2_NAME] → II. Clean Code
+    - [PRINCIPLE_3_NAME] → III. SOLID Principles
+    - [PRINCIPLE_4_NAME] → IV. TypeScript Excellence
+    - [PRINCIPLE_5_NAME] → V. Simplicity
+- Added sections:
+    - Technical Constraints & Stack
+    - Development Workflow
+- Removed sections: None
+- Templates requiring updates:
+    - ✅ .specify/templates/plan-template.md
+- Follow-up TODOs: None
+-->
+
+# whatsapp-pi Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Object Oriented Programming (OOP)
+The codebase MUST follow Object Oriented Programming principles. Use classes, interfaces, and design patterns
+appropriately to manage complexity and ensure modularity.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Clean Code
+Adhere to Clean Code practices. Names must be meaningful, functions must be small and do one thing,
+and the code MUST be readable and maintainable.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. SOLID Principles
+All code MUST strictly follow SOLID principles (Single Responsibility, Open/Closed, Liskov Substitution,
+Interface Segregation, and Dependency Inversion) to ensure a robust and flexible architecture.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. TypeScript Excellence
+Leverage TypeScript's type system to its fullest. Avoid `any`, use strict typing, and prefer interfaces
+for defining contracts between components.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Simplicity
+Keep the implementation as simple as possible. Avoid over-engineering. Follow YAGNI (You Ain't Gonna Need It)
+and KISS (Keep It Simple, Stupid) principles.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+## Technical Constraints & Stack
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+The project is a Pi Code Agent extension. It MUST integrate seamlessly with the Pi ecosystem.
+It uses the Baileys library for WhatsApp connectivity. All asynchronous operations MUST be handled
+using Promises/async/await.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+## Development Workflow
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+Every change MUST be documented in the corresponding specification and plan files. Tasks MUST be
+derived from the plan. Code reviews MUST ensure adherence to these constitutional principles.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution is the primary authority for project decisions. Amendments require a version bump.
+All development artifacts (specs, plans, tasks) MUST align with these principles.
+Use `.specify/memory/constitution.md` as the source of truth.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+1. Amendments require a MINOR or MAJOR version bump.
+2. All code reviews MUST check against these 5 principles.
+3. Any deviation MUST be documented in the "Complexity Tracking" section of the plan.
+
+**Version**: 1.0.0 | **Ratified**: 2026-04-09 | **Last Amended**: 2026-04-09
