@@ -20,6 +20,7 @@ export class WhatsAppService {
 
     async start() {
         if (this.isReconnecting) return;
+        this.onStatusUpdate?.('WhatsApp: Connecting...');
 
         const { state, saveCreds } = await this.sessionManager.getAuthState();
         const { version } = await fetchLatestBaileysVersion();
@@ -51,6 +52,7 @@ export class WhatsAppService {
             if (qr) {
                 this.sessionManager.setStatus('pairing');
                 this.onQRCode?.(qr);
+                this.onStatusUpdate?.('WhatsApp: Pairing...');
             }
 
             if (connection === 'close') {
@@ -64,22 +66,32 @@ export class WhatsAppService {
                     console.error('Bad request error detected - clearing session and forcing re-auth');
                     await this.sessionManager.clearSession();
                     this.sessionManager.setStatus('logged-out');
+                    this.onStatusUpdate?.('WhatsApp: Logged out');
+                    return;
+                }
+
+                if (statusCode === DisconnectReason.connectionReplace) {
+                    console.error('Connection replaced - another instance connected');
+                    this.onStatusUpdate?.('WhatsApp: Conflict (Another Instance)');
                     return;
                 }
                 
                 if (shouldReconnect && !this.isReconnecting) {
                     this.isReconnecting = true;
+                    this.onStatusUpdate?.('WhatsApp: Reconnecting...');
                     setTimeout(() => {
                         this.isReconnecting = false;
                         this.start();
                     }, 3000);
                 } else if (!shouldReconnect) {
                     this.sessionManager.setStatus('logged-out');
+                    this.onStatusUpdate?.('WhatsApp: Disconnected');
                 }
             } else if (connection === 'open') {
                 console.log('WhatsApp connection successfully opened');
                 this.isReconnecting = false;
                 this.sessionManager.setStatus('connected');
+                this.onStatusUpdate?.('WhatsApp: Connected');
             }
         });
 
@@ -88,10 +100,14 @@ export class WhatsAppService {
 
     public handleIncomingMessages(m: any) {
         if (this.sessionManager.getStatus() !== 'connected') return;
-        
         const msg = m.messages[0];
-        if (!msg || !msg.key.remoteJid || msg.key.fromMe) return;
- 
+        if (!msg || !msg.key.remoteJid) return;
+        
+        // Ignore messages sent by Pi (marked with π)
+        const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
+        if (text.endsWith('(π)')) return;
+        
+
         const sender = msg.key.remoteJid.split('@')[0];
         const fullNumber = '+' + sender; 
         
@@ -106,6 +122,7 @@ export class WhatsAppService {
 
     private onQRCode?: (qr: string) => void;
     private onMessage?: (m: any) => void;
+    private onStatusUpdate?: (status: string) => void;
     private lastRemoteJid: string | null = null;
 
     setQRCodeCallback(callback: (qr: string) => void) {
@@ -114,6 +131,10 @@ export class WhatsAppService {
 
     setMessageCallback(callback: (m: any) => void) {
         this.onMessage = callback;
+    }
+
+    setStatusCallback(callback: (status: string) => void) {
+        this.onStatusUpdate = callback;
     }
 
     public getLastRemoteJid(): string | null {
@@ -125,11 +146,26 @@ export class WhatsAppService {
             console.error('WhatsApp socket not initialized - attempting to start...');
             await this.start();
         }
-        await this.socket.sendMessage(jid, { text });
+        await this.socket.sendMessage(jid, { text: `${text} (π)` });
     }
 
     async logout() {
         await this.socket?.logout();
         await this.sessionManager.clearSession();
+    }
+
+    async stop() {
+        if (this.socket) {
+            this.socket.ev.removeAllListeners('connection.update');
+            this.socket.ev.removeAllListeners('creds.update');
+            this.socket.ev.removeAllListeners('messages.upsert');
+            try {
+                this.socket.end(undefined);
+            } catch (e) {}
+            this.socket = undefined;
+            this.isReconnecting = false;
+        }
+        await this.sessionManager.setStatus('disconnected');
+        this.onStatusUpdate?.('WhatsApp: Disconnected');
     }
 }

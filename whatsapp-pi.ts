@@ -8,8 +8,12 @@ export default function(pi: ExtensionAPI) {
     const whatsappService = new WhatsAppService(sessionManager);
     const menuHandler = new MenuHandler(whatsappService, sessionManager);
 
-    // Initialize state from session history
+    // Initial status setup
     pi.on("session_start", async (_event, ctx) => {
+        ctx.ui.setStatus('whatsapp', 'WhatsApp: Disconnected');
+        whatsappService.setStatusCallback((status) => {
+            ctx.ui.setStatus('whatsapp', status);
+        });
         await sessionManager.ensureInitialized();
         
         for (const entry of ctx.sessionManager.getEntries()) {
@@ -24,10 +28,10 @@ export default function(pi: ExtensionAPI) {
             }
         }
 
-        // Auto-connect if we have a saved session
+        // Auto-connect removed to avoid socket conflicts
         if (await sessionManager.isRegistered()) {
-            ctx.ui.setStatus('whatsapp', 'WhatsApp: Connecting...');
-            await whatsappService.start();
+            // We just ensure state is loaded, but do NOT call whatsappService.start()
+            await sessionManager.setStatus('disconnected');
         }
     });
 

@@ -18,14 +18,12 @@ export class MenuHandler {
         const registered = await this.sessionManager.isRegistered();
         const options: string[] = [];
 
-        if (!registered) {
-            options.push('Login (Show QR)');
-        } else if (status === 'logged-out' || status === 'pairing') {
-            options.push('Reconnect');
+        if (status === 'connected') {
+            options.push('Disconnect WhatsApp');
+        } else {
+            options.push('Connect WhatsApp');
         }
 
-        if (status === 'connected') options.push('Disconnect Agent');
-        if (status === 'disconnected') options.push('Connect Agent');
         if (registered) options.push('Logoff (Delete Session)');
         
         options.push('Allow Numbers');
@@ -34,20 +32,16 @@ export class MenuHandler {
         const choice = await ctx.ui.select(`WhatsApp (Status: ${status})`, options);
 
         switch (choice) {
-            case 'Login (Show QR)':
-            case 'Reconnect':
+            case 'Connect WhatsApp':
                 this.whatsappService.setQRCodeCallback((qr) => {
                     ctx.ui.notify('Scan the QR code in the terminal', 'info');
                     qrcode.generate(qr, { small: true });
                 });
                 await this.whatsappService.start();
+                ctx.ui.notify('WhatsApp Connection Started', 'info');
                 break;
-            case 'Connect Agent':
-                await this.sessionManager.setStatus('connected');
-                ctx.ui.notify('WhatsApp Agent Connected', 'success');
-                break;
-            case 'Disconnect Agent':
-                await this.sessionManager.setStatus('disconnected');
+            case 'Disconnect WhatsApp':
+                await this.whatsappService.stop();
                 ctx.ui.notify('WhatsApp Agent Disconnected', 'warning');
                 break;
             case 'Logoff (Delete Session)':
