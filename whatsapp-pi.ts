@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { SessionManager } from './src/services/session.manager.js';
 import { WhatsAppService } from './src/services/whatsapp.service.js';
 import { MenuHandler } from './src/ui/menu.handler.js';
+import { AudioService } from './src/services/audio.service.js';
 
 console.log("[WhatsApp-Pi] Extension file loaded by Pi...");
 export default function(pi: ExtensionAPI) {
@@ -31,6 +32,7 @@ export default function(pi: ExtensionAPI) {
 
     const sessionManager = new SessionManager();
     const whatsappService = new WhatsAppService(sessionManager);
+    const audioService = new AudioService();
     const menuHandler = new MenuHandler(whatsappService, sessionManager);
 
     // Initial status setup
@@ -105,7 +107,7 @@ export default function(pi: ExtensionAPI) {
     });
 
     // Handle incoming messages by injecting them as user prompts
-    whatsappService.setMessageCallback((m) => {
+    whatsappService.setMessageCallback(async (m) => {
         const msg = m.messages[0];
         if (!msg.message) return;
 
@@ -114,12 +116,22 @@ export default function(pi: ExtensionAPI) {
         const sender = msg.key.remoteJid?.split('@')[0] || "unknown";
         const pushName = msg.pushName || "WhatsApp User";
 
+        // Mark as read and start typing indicator immediately
+        const remoteJid = msg.key.remoteJid;
+        if (remoteJid && msg.key.id) {
+            whatsappService.markRead(remoteJid, msg.key.id, msg.key.fromMe);
+            whatsappService.sendPresence(remoteJid, 'composing');
+        }
+
         // Handle media types
-        if (!text) {
+        if (msg.message.audioMessage) {
+            console.log(`[WhatsApp-Pi] Transcribing audio from ${pushName}...`);
+            const transcription = await audioService.transcribe(msg.message.audioMessage);
+            text = `[Áudio Transcrito]: ${transcription}`;
+        } else if (!text) {
             if (msg.message.imageMessage) text = "[Image]";
             else if (msg.message.videoMessage) text = "[Video]";
             else if (msg.message.stickerMessage) text = "[Sticker]";
-            else if (msg.message.audioMessage) text = "[Audio]";
             else if (msg.message.documentMessage) text = "[Document]";
             else if (msg.message.contactMessage || msg.message.contactsArrayMessage) text = "[Contact]";
             else if (msg.message.locationMessage) text = "[Location]";
@@ -129,18 +141,27 @@ export default function(pi: ExtensionAPI) {
         // Always log to console so it appears in the TUI log pane
         console.log(`[WhatsApp-Pi] ${pushName} (+${sender}): ${text}`);
 
+        // Handle commands
+        const cmd = text.trim().toLowerCase();
+        if (cmd === '/new') {
+            console.log(`[WhatsApp-Pi] Session reset requested by ${pushName}. Terminating process to clear context...`);
+            
+            await whatsappService.sendMessage(remoteJid!, "Iniciando nova sessão... 🆕\nO contexto anterior foi limpo e o serviço será reiniciado.");
+            
+            // Give time for the message to be sent
+            setTimeout(() => {
+                // Exit process. The OS/Service Manager should restart it.
+                // When it restarts, it starts a new session by default
+                process.exit(0);
+            }, 2000);
+            return;
+        }
+
         // Use a standard delivery to see if it improves TUI visibility
         pi.sendUserMessage(`Mensagem de ${pushName} (+${sender}): ${text}`);
-
-        // Mark as read and start typing indicator immediately
-        const remoteJid = msg.key.remoteJid;
-        if (remoteJid && msg.key.id) {
-            whatsappService.markRead(remoteJid, msg.key.id, msg.key.fromMe);
-            whatsappService.sendPresence(remoteJid, 'composing');
-        }
     });
 
-    // Register the command
+    // Register commands
     pi.registerCommand("whatsapp", {
         description: "Manage WhatsApp integration",
         handler: async (args, ctx) => {
@@ -181,5 +202,10 @@ export default function(pi: ExtensionAPI) {
                 }
             }
         }
+    });
+
+    pi.on("session_shutdown", async () => {
+        console.log("[WhatsApp-Pi] Session shutdown detected. Stopping WhatsApp service...");
+        await whatsappService.stop();
     });
 }
