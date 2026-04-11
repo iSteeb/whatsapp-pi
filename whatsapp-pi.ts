@@ -60,7 +60,22 @@ export default function(pi: ExtensionAPI) {
     // Handle incoming messages by injecting them as user prompts
     whatsappService.setMessageCallback((m) => {
         const msg = m.messages[0];
-        const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
+        if (!msg.message) return;
+
+        let text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
+        
+        // Handle media types
+        if (!text) {
+            if (msg.message.imageMessage) text = "[Image]";
+            else if (msg.message.videoMessage) text = "[Video]";
+            else if (msg.message.stickerMessage) text = "[Sticker]";
+            else if (msg.message.audioMessage) text = "[Audio]";
+            else if (msg.message.documentMessage) text = "[Document]";
+            else if (msg.message.contactMessage || msg.message.contactsArrayMessage) text = "[Contact]";
+            else if (msg.message.locationMessage) text = "[Location]";
+            else text = "[Unsupported Message Type]";
+        }
+
         const sender = msg.key.remoteJid?.split('@')[0] || "unknown";
         const pushName = msg.pushName || "WhatsApp User";
 
