@@ -183,6 +183,11 @@ export class WhatsAppService {
     }
 
     async sendMessage(jid: string, text: string) {
+        // Show typing indicator before sending
+        await this.sendPresence(jid, 'composing');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        await this.sendPresence(jid, 'paused');
+
         const result = await this.messageSender.send({
             recipientJid: jid,
             text: text
@@ -193,6 +198,28 @@ export class WhatsAppService {
         }
         
         return result;
+    }
+
+    async sendPresence(jid: string, presence: 'composing' | 'recording' | 'paused') {
+        if (!this.socket || this.getStatus() !== 'connected') return;
+        try {
+            await this.socket.sendPresenceUpdate(presence, jid);
+        } catch (error) {
+            if (this.verboseMode) {
+                console.error(`Failed to send presence update to ${jid}:`, error);
+            }
+        }
+    }
+
+    async markRead(jid: string, messageId: string, fromMe: boolean = false) {
+        if (!this.socket || this.getStatus() !== 'connected') return;
+        try {
+            await this.socket.readMessages([{ remoteJid: jid, id: messageId, fromMe }]);
+        } catch (error) {
+            if (this.verboseMode) {
+                console.error(`Failed to mark message as read:`, error);
+            }
+        }
     }
 
     async logout() {

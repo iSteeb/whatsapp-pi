@@ -131,6 +131,13 @@ export default function(pi: ExtensionAPI) {
 
         // Use a standard delivery to see if it improves TUI visibility
         pi.sendUserMessage(`Mensagem de ${pushName} (+${sender}): ${text}`);
+
+        // Immediate typing indicator and mark as read
+        const remoteJid = msg.key.remoteJid;
+        if (remoteJid && msg.key.id) {
+            whatsappService.markRead(remoteJid, msg.key.id, msg.key.fromMe);
+            whatsappService.sendPresence(remoteJid, 'composing');
+        }
     });
 
     // Register the command
@@ -148,6 +155,22 @@ export default function(pi: ExtensionAPI) {
     });
 
     // Handle outgoing messages (Agent -> WhatsApp)
+    pi.on("agent_start", async (_event, _ctx) => {
+        if (sessionManager.getStatus() !== 'connected') return;
+        const lastJid = whatsappService.getLastRemoteJid();
+        if (lastJid) {
+            await whatsappService.sendPresence(lastJid, 'composing');
+        }
+    });
+
+    pi.on("agent_end", async (_event, _ctx) => {
+        if (sessionManager.getStatus() !== 'connected') return;
+        const lastJid = whatsappService.getLastRemoteJid();
+        if (lastJid) {
+            await whatsappService.sendPresence(lastJid, 'paused');
+        }
+    });
+
     pi.on("message_end", async (event, ctx) => {
         if (sessionManager.getStatus() !== 'connected') return;
 
