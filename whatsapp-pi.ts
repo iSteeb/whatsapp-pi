@@ -162,55 +162,14 @@ export default function (pi: ExtensionAPI) {
         // Always log to console so it appears in the TUI log pane
         console.log(`[WhatsApp-Pi] ${pushName} (+${sender}): ${text}`);
 
-        // Handle image with dedicated vision model if configured
-        if (imageBuffer && imageMimeType && sessionManager.getOpenaiKey()) {
-            console.log(`[WhatsApp-Pi] Using dedicated vision model (${sessionManager.getVisionModel()}) for image analysis...`);
-            try {
-                const openAiKey = sessionManager.getOpenaiKey();
-                const visionModel = sessionManager.getVisionModel();
-                
-                const response = await fetch("https://api.openai.com/v1/chat/completions", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${openAiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: visionModel,
-                        messages: [
-                            {
-                                role: "user",
-                                content: [
-                                    { type: "text", text: "Descreva esta imagem em detalhes. Se houver texto, transcreva-o." },
-                                    {
-                                        type: "image_url",
-                                        image_url: {
-                                            url: `data:${imageMimeType};base64,${imageBuffer.toString('base64')}`
-                                        }
-                                    }
-                                ]
-                            }
-                        ],
-                        max_tokens: 500
-                    })
-                });
-
-                if (response.ok) {
-                    const data = await response.json() as any;
-                    const description = data.choices[0].message.content;
-                    text = `${text}\n\n[Análise da Imagem por ${visionModel}]:\n${description}`;
-                    // Clear buffer/mime so we don't send the image again to Pi
-                    imageBuffer = undefined;
-                    imageMimeType = undefined;
-                } else {
-                    const error = await response.text();
-                    console.error(`[WhatsApp-Pi] OpenAI Vision API error:`, error);
-                    text = `${text}\n\n[Erro na análise da imagem: API retornou ${response.status}]`;
-                }
-            } catch (e) {
-                console.error(`[WhatsApp-Pi] Failed to analyze image with OpenAI:`, e);
-                text = `${text}\n\n[Erro ao processar imagem com OpenAI]`;
-            }
+        // Use a standard delivery for ALL messages to ensure TUI consistency
+        if (imageBuffer && imageMimeType) {
+            pi.sendUserMessage([
+                { type: "text", text: `Mensagem de ${pushName} (+${sender}): ${text}` },
+                { type: "image", data: imageBuffer.toString('base64'), mimeType: imageMimeType }
+            ], { deliverAs: "followUp" });
+        } else {
+            pi.sendUserMessage(`Mensagem de ${pushName} (+${sender}): ${text}`, { deliverAs: "followUp" });
         }
 
         // Handle commands
@@ -233,15 +192,7 @@ export default function (pi: ExtensionAPI) {
             return;
         }
 
-        // Use a standard delivery for ALL messages to ensure TUI consistency
-        if (imageBuffer && imageMimeType) {
-            pi.sendUserMessage([
-                { type: "text", text: `Mensagem de ${pushName} (+${sender}): ${text}` },
-                { type: "image", data: imageBuffer.toString('base64'), mimeType: imageMimeType }
-            ], { deliverAs: "followUp" });
-        } else {
-            pi.sendUserMessage(`Mensagem de ${pushName} (+${sender}): ${text}`, { deliverAs: "followUp" });
-        }
+        
     });
 
     // Register commands
