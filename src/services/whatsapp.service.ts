@@ -86,8 +86,14 @@ export class WhatsAppService {
                 
                 console.error(`Connection closed [${statusCode}]. Reconnecting: ${shouldReconnect}`);
                 
-                if (errorMessage.includes('bad-request') || statusCode === 400) {
-                    console.error('Bad request error detected - clearing session and forcing re-auth');
+                if (
+                    errorMessage.includes('bad-request') || 
+                    statusCode === 400 || 
+                    statusCode === 401 || 
+                    statusCode === DisconnectReason.loggedOut ||
+                    statusCode === DisconnectReason.badSession
+                ) {
+                    console.error(`Session invalid or logged out [${statusCode}] - clearing session and forcing re-auth`);
                     await this.sessionManager.clearSession();
                     this.sessionManager.setStatus('logged-out');
                     this.onStatusUpdate?.('| WhatsApp: Logged out');
@@ -127,7 +133,7 @@ export class WhatsAppService {
     public async handleIncomingMessages(m: any) {
         if (this.sessionManager.getStatus() !== 'connected') return;
         const msg = m.messages[0];
-        if (!msg || !msg.key.remoteJid) return;
+        if (!msg || !msg.key.remoteJid || msg.key.fromMe) return;
 
         // Ignore messages sent by Pi (marked with π)
         const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";

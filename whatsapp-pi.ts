@@ -144,16 +144,12 @@ export default function(pi: ExtensionAPI) {
         // Handle commands
         const cmd = text.trim().toLowerCase();
         if (cmd === '/new') {
-            console.log(`[WhatsApp-Pi] Session reset requested by ${pushName}. Terminating process to clear context...`);
+            console.log(`[WhatsApp-Pi] Session reset requested by ${pushName}. Clearing context...`);
             
-            await whatsappService.sendMessage(remoteJid!, "Iniciando nova sessão... 🆕\nO contexto anterior foi limpo e o serviço será reiniciado.");
+            await whatsappService.sendMessage(remoteJid!, "Iniciando nova sessão... 🆕\nO contexto anterior foi limpo.");
             
-            // Give time for the message to be sent
-            setTimeout(() => {
-                // Exit process. The OS/Service Manager should restart it.
-                // When it restarts, it starts a new session by default
-                process.exit(0);
-            }, 2000);
+            // Trigger built-in new command to clear context without exiting
+            pi.sendUserMessage("/new");
             return;
         }
 

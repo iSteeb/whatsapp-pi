@@ -85,6 +85,11 @@ export class SessionManager {
         return this.ignoredNumbers;
     }
 
+    async removeIgnoredNumber(number: string) {
+        this.ignoredNumbers = this.ignoredNumbers.filter(c => c.number !== number);
+        await this.saveConfig();
+    }
+
     async addNumber(number: any, name?: string) {
         // Handle potential nested objects from legacy bugs
         let cleanNumber = number;

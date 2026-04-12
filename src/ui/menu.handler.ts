@@ -35,7 +35,6 @@ export class MenuHandler {
         switch (choice) {
             case 'Connect WhatsApp':
                 this.whatsappService.setQRCodeCallback((qr) => {
-                    ctx.ui.notify('Scan the QR code in the terminal', 'info');
                     qrcode.generate(qr, { small: true });
                 });
                 await this.whatsappService.start();
@@ -91,7 +90,7 @@ export class MenuHandler {
     }
 
     private async manageBlockList(ctx: ExtensionCommandContext) {
-        const list = this.sessionManager.getBlockList();
+        const list = this.sessionManager.getIgnoredNumbers();
         
         if (list.length === 0) {
             ctx.ui.notify('No blocked numbers', 'info');
@@ -115,19 +114,21 @@ export class MenuHandler {
     }
 
     private async manageBlockedNumber(ctx: ExtensionCommandContext, number: string) {
-        const action = await ctx.ui.select(`Manage ${number}`, ['Unblock and Allow', 'Delete', 'Back']);
+        const action = await ctx.ui.select(`Manage ${number}`, ['Allow', 'Delete', 'Back']);
 
-        if (action === 'Unblock and Allow') {
-            const ok = await ctx.ui.confirm('Unblock', `Move ${number} to Allowed Numbers?`);
+        if (action === 'Allow') {
+            const ok = await ctx.ui.confirm('Allow', `Move ${number} to Allowed Numbers?`);
             if (ok) {
-                await this.sessionManager.unblockAndAllow(number);
+                const list = this.sessionManager.getIgnoredNumbers();
+                const contact = list.find(c => c.number === number);
+                await this.sessionManager.addNumber(number, contact?.name);
                 ctx.ui.notify(`${number} moved to Allowed List`, 'info');
             }
             await this.manageBlockList(ctx);
         } else if (action === 'Delete') {
             const ok = await ctx.ui.confirm('Delete', `Remove ${number} from Block List?`);
             if (ok) {
-                await this.sessionManager.unblockNumber(number);
+                await this.sessionManager.removeIgnoredNumber(number);
                 ctx.ui.notify(`${number} removed from Block List`, 'info');
             }
             await this.manageBlockList(ctx);
