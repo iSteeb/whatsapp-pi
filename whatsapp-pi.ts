@@ -38,7 +38,7 @@ export default function(pi: ExtensionAPI) {
     // Initial status setup
     pi.on("session_start", async (_event, ctx) => {
         // Check verbose mode
-        const isVerboseFlagSet = pi.getFlag("v") === true || pi.getFlag("verbose") === true || process.argv.includes("-v") || process.argv.includes("--verbose");
+        const isVerboseFlagSet = process.argv.includes("--verbose");
         
         const isVerbose = isVerboseFlagSet;
         
@@ -68,7 +68,7 @@ export default function(pi: ExtensionAPI) {
         }
 
         // Check whatsapp flag
-        const isConnectFlagSet = pi.getFlag("w") === true || pi.getFlag("whatsapp") === true || process.argv.includes("-w") || process.argv.includes("--whatsapp");
+        const isConnectFlagSet = process.argv.includes("--whatsapp");
         
         // Auto-connect removed to avoid socket conflicts
         if (await sessionManager.isRegistered()) {
@@ -154,17 +154,17 @@ export default function(pi: ExtensionAPI) {
                 await lastCommandCtx.newSession();
             } else {
                 // Trigger the internal reset command to get a CommandContext
-                pi.sendUserMessage("/whatsapp-internal-reset");
+                pi.sendUserMessage("/internal-reset", { deliverAs: "followUp" });
             }
             return;
         }
 
         // Use a standard delivery for ALL messages to ensure TUI consistency
-        pi.sendUserMessage(`Mensagem de ${pushName} (+${sender}): ${text}`);
+        pi.sendUserMessage(`Mensagem de ${pushName} (+${sender}): ${text}`, { deliverAs: "followUp" });
     });
 
     // Internal command to trigger a real new session when we don't have a lastCommandCtx
-    pi.registerCommand("whatsapp-internal-reset", {
+    pi.registerCommand("internal-reset", {
         description: "Internal WhatsApp session reset",
         handler: async (_args, ctx) => {
             lastCommandCtx = ctx;
@@ -180,7 +180,7 @@ export default function(pi: ExtensionAPI) {
                 if (lastCommandCtx) {
                     await lastCommandCtx.newSession();
                 } else {
-                    pi.sendUserMessage("/whatsapp-internal-reset");
+                    pi.sendUserMessage("/internal-reset", { deliverAs: "followUp" });
                 }
                 return { action: "handled" };
             }
