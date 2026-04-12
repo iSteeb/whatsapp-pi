@@ -1,9 +1,17 @@
 {
   "name": "whatsapp-pi",
-  "version": "1.0.16",
+  "version": "1.0.18",
   "type": "module",
   "description": "WhatsApp integration extension for Pi",
   "main": "whatsapp-pi.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RaphaCastelloes/whatsapp-pi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/RaphaCastelloes/whatsapp-pi/issues"
+  },
+  "homepage": "https://github.com/RaphaCastelloes/whatsapp-pi#readme",
   "files": [
     "whatsapp-pi.ts",
     "src"

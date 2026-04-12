@@ -6,6 +6,8 @@
 
 A WhatsApp integration extension for the **[Pi Coding Agent](https://github.com/mariozechner/pi-coding-agent)**. 
 
+[![GitHub](https://img.shields.io/badge/github-repo-black.svg?style=flat-square&logo=github)](https://github.com/RaphaCastelloes/whatsapp-pi)
+
 Pi is a powerful agentic AI coding assistant that operates in your terminal. This extension allows you to chat and pair-program with your Pi agent directly through WhatsApp, featuring message filtering, allow-listing, and reliable message delivery.
 
 ## Features
@@ -40,10 +42,12 @@ pi --whatsapp
 
 ## Development / Testing
 
-If you are developing or testing the extension locally:
+If you are developing or testing the extension locally, you can clone the repository from [GitHub](https://github.com/RaphaCastelloes/whatsapp-pi):
 
-1. Install dependencies:
+1. Clone and install dependencies:
 ```bash
+git clone https://github.com/RaphaCastelloes/whatsapp-pi.git
+cd whatsapp-pi
 npm install
 ```
 
