@@ -23,10 +23,12 @@ export default function (pi: ExtensionAPI) {
     const whatsappService = new WhatsAppService(sessionManager);
     const audioService = new AudioService();
     const menuHandler = new MenuHandler(whatsappService, sessionManager);
-    let lastCommandCtx: ExtensionCommandContext | undefined;
+    let _ctx: ExtensionContext | undefined;
+
 
     // Initial status setup
     pi.on("session_start", async (_event, ctx) => {
+        _ctx = ctx;
         // Check verbose mode
         const isVerboseFlagSet = process.argv.includes("--verbose");
 
@@ -136,14 +138,21 @@ export default function (pi: ExtensionAPI) {
         console.log(`[WhatsApp-Pi] ${pushName} (+${sender}): ${text}`);
 
         // Handle commands
-        if (text.trim().toLowerCase().startsWith('/new')) {
-            console.log(`[WhatsApp-Pi] Session reset requested by ${pushName}. Clearing context...`);
+        if (text.trim().toLowerCase().startsWith('/compact')) {
+            console.log(`[WhatsApp-Pi] Session compact requested by ${pushName}.`);
 
-            if (lastCommandCtx) {
-                await lastCommandCtx.newSession();
-                await whatsappService.sendMessage(remoteJid!, "Sessão iniciada com sucesso! ✅");
-            } else {
-                pi.sendUserMessage("Use /whatsapp no Pi TUI para ativar o comando /new no whatsapp.", { deliverAs: "followUp" });
+            if (_ctx) {
+                _ctx.compact();
+                await whatsappService.sendMessage(remoteJid!, "Sessão compactada com sucesso! ✅");
+            }
+            return;
+        }
+
+        if (text.trim().toLowerCase().startsWith('/abort')) {
+            console.log(`[WhatsApp-Pi] Abort requested by ${pushName}.`);
+            if (_ctx) {
+                _ctx.abort();
+                await whatsappService.sendMessage(remoteJid!, "Abortado! ✅");
             }
             return;
         }
