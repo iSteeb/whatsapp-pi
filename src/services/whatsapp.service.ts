@@ -133,7 +133,9 @@ export class WhatsAppService {
     public async handleIncomingMessages(m: any) {
         if (this.sessionManager.getStatus() !== 'connected') return;
         const msg = m.messages[0];
-        if (!msg || !msg.key.remoteJid || msg.key.fromMe) return;
+
+        // msg.key.fromMe is always allowed
+        if (!msg || !msg.key.remoteJid) return;
 
         // Ignore messages sent by Pi (marked with π)
         const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";

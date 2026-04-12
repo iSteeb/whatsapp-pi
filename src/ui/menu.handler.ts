@@ -24,9 +24,12 @@ export class MenuHandler {
             options.push('Connect WhatsApp');
         }
 
-        if (registered) options.push('Logoff (Delete Session)');
-        
-        options.push('Allow Numbers');
+        if (registered) {
+            options.push('Logoff (Delete Session)');
+            options.push('Reset Conversation');
+        }
+
+        options.push('Allowed Numbers');
         options.push('Blocked Numbers');
         options.push('Back');
 
@@ -45,13 +48,19 @@ export class MenuHandler {
                 ctx.ui.notify('WhatsApp Agent Disconnected', 'warning');
                 break;
             case 'Logoff (Delete Session)':
-                const confirm = await ctx.ui.confirm('Logoff', 'Delete all credentials?');
-                if (confirm) {
+                const confirmLogoff = await ctx.ui.confirm('Logoff', 'Delete all credentials?');
+                if (confirmLogoff) {
                     await this.whatsappService.logout();
                     ctx.ui.notify('Logged off and credentials deleted', 'info');
                 }
                 break;
-            case 'Allow Numbers':
+            case 'Reset Conversation':
+                const confirmReset = await ctx.ui.confirm('Reset', 'Clear all conversation history?');
+                if (confirmReset) {
+                    await ctx.newSession();
+                }
+                break;
+            case 'Allowed Numbers':
                 await this.manageAllowList(ctx);
                 break;
             case 'Blocked Numbers':
@@ -63,8 +72,12 @@ export class MenuHandler {
     private async manageAllowList(ctx: ExtensionCommandContext) {
         const list = this.sessionManager.getAllowList();
         // Exibe o nome se existir, senão apenas o número
-        const options = [...list.map(c => `Remove ${c.name ? c.name + ' (' + c.number + ')' : c.number}`), 'Add Number', 'Back'];
-        
+        let options = [...list.map(c => `Remove ${c.name ? c.name + ' (' + c.number + ')' : c.number}`), 'Add Number'];
+        if (list.length > 0) {
+            options.push('Clear All');
+        }
+        options.push('Back');
+
         const choice = await ctx.ui.select('Allowed Numbers', options);
 
         if (choice === 'Add Number') {
@@ -74,6 +87,13 @@ export class MenuHandler {
                 ctx.ui.notify(`Added ${num}`, 'info');
             } else {
                 ctx.ui.notify('Invalid number format', 'error');
+            }
+            await this.manageAllowList(ctx);
+        } else if (choice === 'Clear All') {
+            const ok = await ctx.ui.confirm('Clear All', 'Remove all allowed numbers?');
+            if (ok) {
+                await this.sessionManager.clearAllowList();
+                ctx.ui.notify('Allowed numbers cleared', 'info');
             }
             await this.manageAllowList(ctx);
         } else if (choice?.startsWith('Remove ')) {
@@ -86,6 +106,8 @@ export class MenuHandler {
             await this.sessionManager.removeNumber(num);
             ctx.ui.notify(`Removed ${num}`, 'info');
             await this.manageAllowList(ctx);
+        } else if (choice === 'Back') {
+            await this.handleCommand(ctx);
         }
     }
 

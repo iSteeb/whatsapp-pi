@@ -116,6 +116,11 @@ export class SessionManager {
         await this.saveConfig();
     }
 
+    async clearAllowList() {
+        this.allowList = [];
+        await this.saveConfig();
+    }
+
     async blockNumber(number: string, name?: string) {
         if (!this.blockList.find(c => c.number === number)) {
             this.blockList.push({ number, name });
