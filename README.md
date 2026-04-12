@@ -19,6 +19,13 @@ Pi is a powerful agentic AI coding assistant that operates in your terminal. Thi
 - **Reliable Messaging**: Queue-based message sending with retry logic
 - **TUI Integration**: Menu-driven interface for managing connections and contacts
 
+## Prerequisites
+
+To enable audio features, you need to install OpenAI Whisper:
+```bash
+python -m pip install -U openai-whisper
+```
+
 ## Quick Start
 
 1. Install the extension:

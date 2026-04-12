@@ -4,12 +4,13 @@ import { promisify } from 'node:util';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 
 const execAsync = promisify(exec);
 
 export class AudioService {
-    private readonly mediaDir = '/home/opc/.pi/whatsapp-medias';
-    private readonly whisperPath = '/home/opc/.local/bin/whisper';
+    private readonly mediaDir = join(homedir(), '.pi', 'whatsapp-medias');
+    private readonly whisperPath = process.platform === 'win32' ? 'python -m whisper' : join(homedir(), '.local', 'bin', 'whisper');
 
     constructor() {
         if (!existsSync(this.mediaDir)) {
