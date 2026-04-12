@@ -1,10 +1,8 @@
 import { useMultiFileAuthState } from '@whiskeysockets/baileys';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { rm, readFile, writeFile, mkdir } from 'fs/promises';
+import { join } from 'path';
+import { readFile, writeFile, mkdir, rm } from 'fs/promises';
+import { homedir } from 'os';
 import { SessionStatus } from '../models/whatsapp.types.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export interface Contact {
     number: string;
@@ -12,8 +10,8 @@ export interface Contact {
 }
 
 export class SessionManager {
-    // Data is stored in a fixed folder inside the extension project
-    private readonly baseDir = join(__dirname, '..', '..', '.pi-data');
+    // Data is stored in the user's home directory to persist across updates
+    private readonly baseDir = join(homedir(), '.pi', 'whatsapp-pi');
     private readonly authDir = join(this.baseDir, 'auth');
     private readonly configPath = join(this.baseDir, 'config.json');
 
