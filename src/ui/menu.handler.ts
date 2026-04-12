@@ -178,13 +178,13 @@ export class MenuHandler {
         if (choice?.startsWith('API Key:')) {
             const newKey = await ctx.ui.input('Enter OpenAI API Key (leave empty to clear):');
             await this.sessionManager.setOpenaiKey(newKey || '');
-            ctx.ui.notify('OpenAI Key updated', 'success');
+            ctx.ui.notify('OpenAI Key updated', 'info');
             await this.manageVisionSettings(ctx);
         } else if (choice?.startsWith('Vision Model:')) {
-            const newModel = await ctx.ui.input('Enter Vision Model (e.g., gpt-4o, gpt-4o-mini):', { defaultValue: model });
+            const newModel = await ctx.ui.input('Enter Vision Model (e.g., gpt-4o, gpt-4o-mini):', model);
             if (newModel) {
                 await this.sessionManager.setVisionModel(newModel);
-                ctx.ui.notify('Vision model updated', 'success');
+                ctx.ui.notify('Vision model updated', 'info');
             }
             await this.manageVisionSettings(ctx);
         } else {
