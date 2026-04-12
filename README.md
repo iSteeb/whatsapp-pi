@@ -65,32 +65,6 @@ pi -e whatsapp-pi.ts --verbose
   - **Allow Numbers**: Manage contacts that can interact with Pi
   - **Blocked Numbers**: View ignored numbers (not in allow list) and add them to allow list
 
-## Important Configuration
-
-### Using Your Own WhatsApp Number
-
-If you're using your **own WhatsApp number** (not a separate bot number), you need to modify the message filtering in `src/services/whatsapp.service.ts`:
-
-**Remove this line from `handleIncomingMessages()`:**
-```typescript
-// Ignore messages sent by the bot itself
-if (msg.key.fromMe) return;
-```
-
-**Why?** When using your own number:
-- Pi sends messages from your account (marked with `π` symbol)
-- The `fromMe` filter blocks ALL your outgoing messages, including Pi's responses
-- The `π` symbol check is sufficient to prevent message loops
-
-**Keep this check:**
-```typescript
-// Ignore messages sent by Pi (marked with π)
-const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
-if (text.endsWith('π')) return;
-```
-
-This ensures Pi doesn't process its own sent messages while still receiving messages from others.
-
 ## Project Structure
 
 ```

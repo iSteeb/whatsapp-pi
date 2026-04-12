@@ -129,9 +129,6 @@ export class WhatsAppService {
         const msg = m.messages[0];
         if (!msg || !msg.key.remoteJid) return;
 
-        // KEEP IT COMMENTED
-        // if (msg.key.fromMe) return;
-
         // Ignore messages sent by Pi (marked with π)
         const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
         if (text.endsWith('π')) return;
