@@ -165,7 +165,7 @@ export default function (pi: ExtensionAPI) {
     pi.registerCommand("whatsapp", {
         description: "Manage WhatsApp integration",
         handler: async (args, ctx) => {
-            lastCommandCtx = ctx;
+            _ctx = ctx;
             await menuHandler.handleCommand(ctx);
 
             // Persist state after changes
