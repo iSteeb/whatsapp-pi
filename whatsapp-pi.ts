@@ -1,11 +1,11 @@
-import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { SessionManager } from './src/services/session.manager.js';
 import { WhatsAppService } from './src/services/whatsapp.service.js';
 import { MenuHandler } from './src/ui/menu.handler.js';
 import { AudioService } from './src/services/audio.service.js';
 
 console.log("[WhatsApp-Pi] Extension file loaded by Pi...");
-export default function(pi: ExtensionAPI) {
+export default function (pi: ExtensionAPI) {
     // Register verbose flag
     pi.registerFlag("v", {
         description: "Enable verbose mode (show Baileys trace logs)",
@@ -34,6 +34,7 @@ export default function(pi: ExtensionAPI) {
     const whatsappService = new WhatsAppService(sessionManager);
     const audioService = new AudioService();
     const menuHandler = new MenuHandler(whatsappService, sessionManager);
+    let lastCommandCtx: ExtensionCommandContext | undefined;
 
     // Initial status setup
     pi.on("session_start", async (_event, ctx) => {
@@ -104,11 +105,11 @@ export default function(pi: ExtensionAPI) {
         } else if (isConnectFlagSet) {
             ctx.ui.notify('WhatsApp: Auto-connect skipped. Manual login required.', 'info');
         }
-        
+
         ctx.ui.notify('WhatsApp: Session reset via /new is now fully supported.', 'info');
     });
 
-    let lastCommandCtx: ExtensionCommandContext | undefined;
+
 
     // Handle incoming messages by injecting them as user prompts
     whatsappService.setMessageCallback(async (m) => {
@@ -153,38 +154,13 @@ export default function(pi: ExtensionAPI) {
             if (lastCommandCtx) {
                 await lastCommandCtx.newSession();
             } else {
-                // Trigger the internal reset command to get a CommandContext
-                pi.sendUserMessage("/internal-reset", { deliverAs: "followUp" });
+                pi.sendUserMessage("Use /whatsapp in Pi TUI to activate /new in whatsapp", { deliverAs: "followUp" });
             }
             return;
         }
 
         // Use a standard delivery for ALL messages to ensure TUI consistency
         pi.sendUserMessage(`Mensagem de ${pushName} (+${sender}): ${text}`, { deliverAs: "followUp" });
-    });
-
-    // Internal command to trigger a real new session when we don't have a lastCommandCtx
-    pi.registerCommand("internal-reset", {
-        description: "Internal WhatsApp session reset",
-        handler: async (_args, ctx) => {
-            lastCommandCtx = ctx;
-            await ctx.newSession();
-        }
-    });
-
-    // Handle the /new command from within the extension to ensure it clears the context
-    pi.on("input", async (event, _ctx) => {
-        if (event.source === "extension") {
-            const match = event.text.match(/^Mensagem de .* \(\+\d+\): (\/new.*)$/i);
-            if (match) {
-                if (lastCommandCtx) {
-                    await lastCommandCtx.newSession();
-                } else {
-                    pi.sendUserMessage("/internal-reset", { deliverAs: "followUp" });
-                }
-                return { action: "handled" };
-            }
-        }
     });
 
     // Register commands
