@@ -4,8 +4,23 @@
   "type": "module",
   "description": "WhatsApp integration extension for Pi",
   "main": "whatsapp-pi.ts",
+  "files": [
+    "whatsapp-pi.ts",
+    "src"
+  ],
+  "keywords": [
+    "pi",
+    "pi-package",
+    "pi-extension",
+    "whatsapp",
+    "baileys",
+    "agent"
+  ],
+  "author": "Rapha",
+  "license": "MIT",
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.11.0",
@@ -15,6 +30,7 @@
   "devDependencies": {
     "@mariozechner/pi-coding-agent": "latest",
     "@types/node": "^20.11.0",
+    "@types/qrcode-terminal": "^0.12.2",
     "ts-node": "^10.9.2",
     "tsx": "^4.7.0",
     "typescript": "^5.3.0",
@@ -23,6 +39,7 @@
   "pi": {
     "extensions": [
       "./whatsapp-pi.ts"
-    ]
+    ],
+    "image": "https://raw.githubusercontent.com/raphaelcastelloes/whatsapp-pi/main/screenshot.png"
   }
 }
