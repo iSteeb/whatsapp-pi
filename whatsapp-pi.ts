@@ -13,8 +13,8 @@ export default function (pi: ExtensionAPI) {
         default: false
     });
 
-    pi.registerFlag("whatsapp-pi-off", {
-        description: "Disable WhatsApp-Pi on startup",
+    pi.registerFlag("whatsapp-pi-online", {
+        description: "Enable WhatsApp-Pi on startup",
         type: "boolean",
         default: false
     });
