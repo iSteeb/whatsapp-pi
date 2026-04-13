@@ -3,6 +3,8 @@ import { SessionManager } from './src/services/session.manager.js';
 import { WhatsAppService } from './src/services/whatsapp.service.js';
 import { MenuHandler } from './src/ui/menu.handler.js';
 import { AudioService } from './src/services/audio.service.js';
+import { join } from 'node:path';
+import { writeFile, mkdir } from 'node:fs/promises';
 
 console.log("[WhatsApp-Pi] Extension file loaded by Pi...");
 export default function (pi: ExtensionAPI) {
@@ -98,6 +100,17 @@ export default function (pi: ExtensionAPI) {
         }
 
         ctx.ui.notify('WhatsApp: Session reset via /new is now fully supported.', 'info');
+
+        // Verify pdftotext availability for document support
+        try {
+            const { code } = await pi.exec('pdftotext', ['-v']);
+            if (code !== 0 && code !== 99) { // 99 is a common exit code for -v in some versions
+                throw new Error(`pdftotext returned code ${code}`);
+            }
+        } catch (e) {
+            ctx.ui.notify('WhatsApp: pdftotext not found. PDF document support will be limited to storage only.', 'warning');
+            console.warn('[WhatsApp-Pi] Warning: pdftotext not found in system PATH.');
+        }
     });
 
 
@@ -153,7 +166,53 @@ export default function (pi: ExtensionAPI) {
         } else if (!text) {
             if (msg.message.videoMessage) text = "[Video]";
             else if (msg.message.stickerMessage) text = "[Sticker]";
-            else if (msg.message.documentMessage) text = "[Document]";
+            else if (msg.message.documentMessage) 
+                {   
+                   const doc = msg.message.documentMessage;
+                   const fileName = doc.fileName || 'unnamed_document';
+                   const mimeType = doc.mimetype || 'application/octet-stream';
+                   const fileSize = doc.fileLength ? Number(doc.fileLength) : 0;
+                   
+                   console.log(`[WhatsApp-Pi] Downloading document from ${pushName}: ${fileName}...`);
+                   
+                   try {
+                       const { downloadContentFromMessage } = await import('@whiskeysockets/baileys');
+                       const stream = await downloadContentFromMessage(doc, 'document');
+                       let buffer = Buffer.from([]);
+                       for await (const chunk of stream) {
+                           buffer = Buffer.concat([buffer, chunk]);
+                       }
+                       
+                       // Sanitize filename
+                       const sanitized = fileName.replace(/[^a-z0-9\._-]/gi, '_');
+                       const savedFileName = `${Date.now()}_${sanitized}`;
+                       const relativePath = `./.pi-data/whatsapp/documents/${savedFileName}`;
+                       const absolutePath = join(process.cwd(), '.pi-data', 'whatsapp', 'documents', savedFileName);
+                       
+                       // Ensure directory exists (T001 handles it at startup, but let's be safe)
+                       await mkdir(join(process.cwd(), '.pi-data', 'whatsapp', 'documents'), { recursive: true });
+                       await writeFile(absolutePath, buffer);
+                       
+                       console.log(`[WhatsApp-Pi] Document saved to ${relativePath} (${buffer.length} bytes)`);
+                       
+                       const sizeFormatted = fileSize > 1024 * 1024 
+                           ? `${(fileSize / (1024 * 1024)).toFixed(1)} MB`
+                           : `${(fileSize / 1024).toFixed(1)} KB`;
+                       
+                       text = `[Document Received: ${fileName}]\n` +
+                              `MIME Type: ${mimeType}\n` +
+                              `Size: ${sizeFormatted}\n` +
+                              `Location: ${relativePath}`;
+                              
+                       if (doc.caption) {
+                           text += `\n\nDescription: ${doc.caption}`;
+                       }
+                   } catch (e) {
+                       console.error(`[WhatsApp-Pi] Failed to download document:`, e);
+                       text = `[Document: ${fileName} (download failed)]`;
+                   }
+                }
+
             else if (msg.message.contactMessage || msg.message.contactsArrayMessage) text = "[Contact]";
             else if (msg.message.locationMessage) text = "[Location]";
             else text = "[Unsupported Message Type]";

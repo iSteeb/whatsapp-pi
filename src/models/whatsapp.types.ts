@@ -44,3 +44,11 @@ export class WhatsAppError extends Error {
 export function validatePhoneNumber(number: string): boolean {
     return /^\+[1-9]\d{1,14}$/.test(number);
 }
+
+export interface DocumentMetadata {
+    filename: string;
+    mimetype: string;
+    size: number;
+    savedPath: string;
+    timestamp: number;
+}
