@@ -120,6 +120,7 @@ See `specs/` directory for detailed feature documentation:
 - `006-auto-connect-flag/` - Automatic connection support
 - `007-image-recognition/` - Vision analysis integration
 - `008-document-message-support/` - Document handling and storage
+- `009-localize-system-messages/` - US English localization
 
 ## Development
 
@@ -137,5 +138,8 @@ npm test
 - **Document Message Support**: 
   - WhatsApp documents (PDFs, text files, etc.) are downloaded and saved to `./.pi-data/whatsapp/documents/`.
   - The Pi agent receives a notification with the file path and metadata.
-- **Verbose Mode**: Enhanced logging for the WhatsApp connection lifecycle and message processing. Use `--verbose` to see Baileys trace logs.
+- **Full US-English Localization**: All user-facing menus, TUI notifications, console logs, and agent communication headers have been localized to `en-US` for a consistent experience.
+- **Intelligent Message Filtering**: 
+  - **Loop Prevention**: The bot automatically ignores any message ending with the `π` symbol, preventing infinite loops between instances.
+  - **Manual Interaction**: Users can now interact with the bot from their own WhatsApp account; the bot will process `fromMe` messages as long as they don't contain the bot's signature.
 - **Storage Management**: All persistent data (auth state, documents, config) is centralized in the `.pi-data/` directory.
