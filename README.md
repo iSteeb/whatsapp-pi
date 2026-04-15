@@ -108,19 +108,6 @@ specs/               # Feature specifications
 tests/               # Unit and integration tests
 ```
 
-## Documentation
-
-See `specs/` directory for detailed feature documentation:
-- `001-whatsapp-tui-integration/` - TUI menu system
-- `002-manual-whatsapp-connection/` - Connection management
-- `003-whatsapp-messaging-refactor/` - Reliable messaging
-- `004-blocked-numbers-management/` - Block list feature
-- `005-verbose-mode-support/` - Logging and tracing
-- `006-auto-connect-flag/` - Automatic connection support
-- `007-image-recognition/` - Vision analysis integration
-- `008-document-message-support/` - Document handling and storage
-- `009-localize-system-messages/` - US English localization
-
 ## Development
 
 Run tests:
