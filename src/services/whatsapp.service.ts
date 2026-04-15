@@ -242,6 +242,44 @@ export class WhatsAppService {
         return result;
     }
 
+    private normalizeRecipientJid(jid: string): string {
+        if (jid.includes('@')) return jid;
+        const digits = jid.startsWith('+') ? jid.slice(1) : jid;
+        return `${digits}@s.whatsapp.net`;
+    }
+
+    async sendMenuMessage(jid: string, text: string) {
+        const normalizedJid = this.normalizeRecipientJid(jid);
+
+        if (!this.socket || this.getStatus() !== 'connected') {
+            return {
+                success: false,
+                error: 'WhatsApp is not connected',
+                attempts: 0
+            };
+        }
+
+        try {
+            await this.sendPresence(normalizedJid, 'composing');
+            const response = await this.socket.sendMessage(normalizedJid, { text });
+            await this.sendPresence(normalizedJid, 'paused');
+
+            return {
+                success: true,
+                messageId: response?.key?.id,
+                attempts: 1
+            };
+        } catch (error: any) {
+            await this.sendPresence(normalizedJid, 'paused');
+            console.error(`Failed to send menu message to ${normalizedJid}:`, error);
+            return {
+                success: false,
+                error: error?.message || 'Unknown error',
+                attempts: 1
+            };
+        }
+    }
+
     async sendPresence(jid: string, presence: 'composing' | 'recording' | 'paused') {
         if (!this.socket || this.getStatus() !== 'connected') return;
         try {

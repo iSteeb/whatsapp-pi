@@ -311,7 +311,7 @@ export class MenuHandler {
                 continue;
             }
 
-            const result = await this.whatsappService.sendMessage(this.toJid(conversation.senderNumber), trimmed);
+            const result = await this.whatsappService.sendMenuMessage(this.toJid(conversation.senderNumber), trimmed);
             if (result.success) {
                 await this.recentsService.recordMessage({
                     messageId: result.messageId ?? `${Date.now()}`,
@@ -323,7 +323,7 @@ export class MenuHandler {
                 });
                 ctx.ui.notify(`Sent message to ${displayName}`, 'info');
             } else {
-                ctx.ui.notify(`Failed to send message to ${displayName}`, 'error');
+                ctx.ui.notify(`Failed to send message to ${displayName}: ${result.error ?? 'Unknown error'}`, 'error');
             }
             return;
         }
@@ -340,7 +340,7 @@ export class MenuHandler {
                 continue;
             }
 
-            const result = await this.whatsappService.sendMessage(this.toJid(contact.number), trimmed);
+            const result = await this.whatsappService.sendMenuMessage(this.toJid(contact.number), trimmed);
             if (result.success) {
                 await this.recentsService.recordMessage({
                     messageId: result.messageId ?? `${Date.now()}`,
@@ -352,7 +352,7 @@ export class MenuHandler {
                 });
                 ctx.ui.notify(`Sent message to ${displayName}`, 'info');
             } else {
-                ctx.ui.notify(`Failed to send message to ${displayName}`, 'error');
+                ctx.ui.notify(`Failed to send message to ${displayName}: ${result.error ?? 'Unknown error'}`, 'error');
             }
             return;
         }
