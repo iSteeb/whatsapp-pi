@@ -77,16 +77,37 @@ export class WhatsAppService {
 
         const logger = P({ level: this.verboseMode ? 'trace' : 'silent' });
         
-        this.socket = makeWASocket({
-            version,
-            printQRInTerminal: false,
-            auth: {
-                creds: state.creds,
-                keys: makeCacheableSignalKeyStore(state.keys, logger),
-            },
-            syncFullHistory: false,
-            logger,
-        });
+        // Suppress Baileys console output during initialization
+        const originalConsoleLog = console.log;
+        const originalConsoleWarn = console.warn;
+        const originalConsoleError = console.error;
+        
+        if (!this.verboseMode) {
+            console.log = () => {};
+            console.warn = () => {};
+            console.error = () => {};
+        }
+        
+        try {
+            this.socket = makeWASocket({
+                version,
+                printQRInTerminal: false,
+                auth: {
+                    creds: state.creds,
+                    keys: makeCacheableSignalKeyStore(state.keys, logger),
+                },
+                syncFullHistory: false,
+                logger,
+            });
+        } catch (error) {
+            // Restore console methods even if socket creation fails
+            if (!this.verboseMode) {
+                console.log = originalConsoleLog;
+                console.warn = originalConsoleWarn;
+                console.error = originalConsoleError;
+            }
+            throw error;
+        }
 
         this.socket.ev.on('creds.update', async () => {
             await saveCreds();
@@ -160,6 +181,13 @@ export class WhatsAppService {
         });
 
         this.socket.ev.on('messages.upsert', (m: any) => this.handleIncomingMessages(m));
+
+        // Restore console methods after socket creation
+        if (!this.verboseMode) {
+            console.log = originalConsoleLog;
+            console.warn = originalConsoleWarn;
+            console.error = originalConsoleError;
+        }
     }
 
     public async handleIncomingMessages(m: any) {
