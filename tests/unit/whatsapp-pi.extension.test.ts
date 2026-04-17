@@ -189,9 +189,33 @@ describe('whatsapp-pi extension', () => {
         expect(ctx.ui.setStatus).toHaveBeenCalledWith('whatsapp', '| WhatsApp: Disconnected');
         expect(mocks.sessionManager.ensureInitialized).toHaveBeenCalledOnce();
         expect(mocks.recentsService.ensureInitialized).toHaveBeenCalledOnce();
-        expect(mocks.sessionManager.setStatus).toHaveBeenCalledWith('connected');
+        expect(mocks.sessionManager.setStatus).toHaveBeenCalledWith('disconnected');
         expect(mocks.sessionManager.addNumber).toHaveBeenCalledWith('+5511999998888', 'Ana');
         expect(mocks.whatsappService.setIncomingMessageRecorder).toHaveBeenCalledOnce();
+    });
+
+    it('preserves saved connected status when startup auto-connect is enabled', async () => {
+        const registerExtension = await loadExtension();
+        const pi = createMockPi();
+        const ctx = createMockContext();
+        pi.getFlag.mockReturnValue(true);
+        mocks.sessionManager.isRegistered.mockResolvedValue(true);
+        ctx.sessionManager.getEntries.mockReturnValue([
+            {
+                type: 'custom',
+                customType: 'whatsapp-state',
+                data: {
+                    status: 'connected',
+                    allowList: []
+                }
+            }
+        ]);
+
+        registerExtension(pi as any);
+        await pi.handlers.get('session_start')!({ reason: 'startup' }, ctx);
+
+        expect(mocks.sessionManager.setStatus).toHaveBeenCalledWith('connected');
+        expect(mocks.whatsappService.start).toHaveBeenCalledOnce();
     });
 
     it('auto-connects only on startup when flag is enabled and auth is registered', async () => {

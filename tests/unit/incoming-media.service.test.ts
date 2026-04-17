@@ -53,6 +53,7 @@ describe('IncomingMediaService', () => {
         });
 
         expect(audioService.transcribe).toHaveBeenCalledWith(audioMessage);
+        expect(console.log).not.toHaveBeenCalled();
     });
 
     it('downloads images and normalizes image/jpg MIME type', async () => {

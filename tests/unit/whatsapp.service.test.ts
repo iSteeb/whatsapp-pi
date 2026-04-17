@@ -27,6 +27,13 @@ describe('WhatsAppService Filtering', () => {
         expect(callback).not.toHaveBeenCalled();
     });
 
+    it('should report disconnected effective status when persisted status is connected but socket is absent', async () => {
+        await sessionManager.setStatus('connected');
+
+        expect(whatsappService.getStatus()).toBe('connected');
+        expect(whatsappService.getEffectiveStatus()).toBe('disconnected');
+    });
+
     it('should only process messages if sender is in allow list', async () => {
         const callback = vi.fn();
         whatsappService.setMessageCallback(callback);

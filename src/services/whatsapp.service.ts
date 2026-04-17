@@ -10,6 +10,11 @@ import { Boom } from '@hapi/boom';
 import { SessionManager } from './session.manager.js';
 import { IncomingMessage, WhatsAppSession, SessionStatus } from '../models/whatsapp.types.js';
 import { MessageSender } from './message.sender.js';
+import { installBaileysConsoleFilter } from './baileys-console-filter.js';
+
+export interface WhatsAppStartOptions {
+    allowPairingOnAuthFailure?: boolean;
+}
 
 export class WhatsAppService {
     private socket: any;
@@ -19,6 +24,7 @@ export class WhatsAppService {
     private verboseMode = false;
     private onIncomingMessageRecorded?: (message: IncomingMessage) => void | Promise<void>;
     private saveCreds?: () => Promise<void>;
+    private restoreBaileysConsoleFilter?: () => void;
 
     constructor(sessionManager: SessionManager) {
         this.sessionManager = sessionManager;
@@ -27,6 +33,15 @@ export class WhatsAppService {
 
     public getStatus(): SessionStatus {
         return this.sessionManager.getStatus();
+    }
+
+    public getEffectiveStatus(): SessionStatus {
+        const status = this.sessionManager.getStatus();
+        if (status === 'connected' && !this.socket) {
+            return 'disconnected';
+        }
+
+        return status;
     }
 
     public setIncomingMessageRecorder(callback: (message: IncomingMessage) => void | Promise<void>) {
@@ -43,6 +58,10 @@ export class WhatsAppService {
 
     public setVerboseMode(verbose: boolean) {
         this.verboseMode = verbose;
+        if (verbose) {
+            this.restoreBaileysConsoleFilter?.();
+            this.restoreBaileysConsoleFilter = undefined;
+        }
     }
 
     private normalizeContactNumber(value: string): string {
@@ -57,7 +76,8 @@ export class WhatsAppService {
         return value;
     }
 
-    async start() {
+    async start(options: WhatsAppStartOptions = {}) {
+        const allowPairingOnAuthFailure = options.allowPairingOnAuthFailure ?? true;
         if (this.isReconnecting) return;
         this.onStatusUpdate?.('| WhatsApp: Connecting...');
 
@@ -67,6 +87,8 @@ export class WhatsAppService {
 
         // Cleanup existing socket if any
         if (this.socket) {
+            this.restoreBaileysConsoleFilter?.();
+            this.restoreBaileysConsoleFilter = undefined;
             this.socket.ev.removeAllListeners('connection.update');
             this.socket.ev.removeAllListeners('creds.update');
             this.socket.ev.removeAllListeners('messages.upsert');
@@ -127,32 +149,57 @@ export class WhatsAppService {
                 const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
                 const errorMessage = lastDisconnect?.error?.message || '';
                 const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-                const shouldTreatAsLoggedOut =
+                const isBadMac = errorMessage.includes('Bad MAC');
+                const isAuthRejected =
                     errorMessage.includes('bad-request') ||
-                    errorMessage.includes('Bad MAC') ||
                     statusCode === 400 ||
                     statusCode === 401 ||
                     statusCode === DisconnectReason.loggedOut ||
                     statusCode === DisconnectReason.badSession;
+                const shouldTreatAsLoggedOut = isBadMac || isAuthRejected;
 
-                console.error(`Connection closed [${statusCode}]. Reconnecting: ${shouldReconnect}`);
+                if (this.verboseMode) {
+                    console.error(`Connection closed [${statusCode}]. Reconnecting: ${shouldReconnect}`);
+                }
 
                 if (shouldTreatAsLoggedOut) {
-                    console.error(`Session invalid or logged out [${statusCode}] - preserving auth state and requiring re-auth`);
-                    if (errorMessage.includes('Bad MAC')) {
-                        console.error('[WhatsApp-Pi] Bad MAC error detected. Your session keys are corrupted.');
-                        console.error('[WhatsApp-Pi] Run /whatsapp-logout to clear auth state, then reconnect with /whatsapp-connect');
+                    if (isAuthRejected && !isBadMac && allowPairingOnAuthFailure) {
+                        if (this.verboseMode) {
+                            console.error(`Session rejected [${statusCode}] - clearing auth state and starting pairing`);
+                        }
+                        await this.sessionManager.deleteAuthState();
+                        this.socket.ev.removeAllListeners('connection.update');
+                        this.socket.ev.removeAllListeners('creds.update');
+                        this.socket.ev.removeAllListeners('messages.upsert');
+                        try {
+                            this.socket.end(undefined);
+                        } catch (e) {}
+                        this.socket = undefined;
+                        await this.start({ allowPairingOnAuthFailure: false });
+                        return;
+                    }
+
+                    if (this.verboseMode) {
+                        console.error(`Session invalid or logged out [${statusCode}] - preserving auth state and requiring re-auth`);
+                    }
+                    if (isBadMac) {
+                        if (this.verboseMode) {
+                            console.error('[WhatsApp-Pi] Bad MAC error detected. Your session keys are corrupted.');
+                            console.error('[WhatsApp-Pi] Run /whatsapp-logout to clear auth state, then reconnect with /whatsapp-connect');
+                        }
                         this.onStatusUpdate?.('| WhatsApp: Session Error (Bad MAC)');
                     }
                     this.sessionManager.setStatus('logged-out');
-                    if (!errorMessage.includes('Bad MAC')) {
+                    if (!isBadMac) {
                         this.onStatusUpdate?.('| WhatsApp: Logged out');
                     }
                     return;
                 }
 
                 if (statusCode === DisconnectReason.connectionReplaced) {
-                    console.error('Connection replaced - another instance connected');
+                    if (this.verboseMode) {
+                        console.error('Connection replaced - another instance connected');
+                    }
                     this.onStatusUpdate?.('| WhatsApp: Conflict (Another Instance)');
                     return;
                 }
@@ -162,7 +209,7 @@ export class WhatsAppService {
                     this.onStatusUpdate?.('| WhatsApp: Reconnecting...');
                     setTimeout(() => {
                         this.isReconnecting = false;
-                        this.start();
+                        this.start(options);
                     }, 3000);
                 } else if (!shouldReconnect) {
                     this.sessionManager.setStatus('logged-out');
@@ -187,6 +234,7 @@ export class WhatsAppService {
             console.log = originalConsoleLog;
             console.warn = originalConsoleWarn;
             console.error = originalConsoleError;
+            this.restoreBaileysConsoleFilter = installBaileysConsoleFilter(this.verboseMode);
         }
     }
 
@@ -354,6 +402,8 @@ export class WhatsAppService {
         }
 
         if (this.socket) {
+            this.restoreBaileysConsoleFilter?.();
+            this.restoreBaileysConsoleFilter = undefined;
             this.socket.ev.removeAllListeners('connection.update');
             this.socket.ev.removeAllListeners('creds.update');
             this.socket.ev.removeAllListeners('messages.upsert');

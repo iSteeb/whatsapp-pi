@@ -13,7 +13,7 @@ export class MenuHandler {
     ) {}
 
     async handleCommand(ctx: ExtensionCommandContext) {
-        const status = this.sessionManager.getStatus();
+        const status = this.whatsappService.getEffectiveStatus();
         const registered = await this.sessionManager.isRegistered();
         const options: string[] = [];
 
@@ -363,7 +363,8 @@ export class MenuHandler {
         }
 
         const options = [
-            ...history.slice().reverse().map(message => this.formatHistoryOption(message.timestamp, message.direction, message.text)),
+            ...this.sortHistoryByMostRecent(history)
+                .map(message => this.formatHistoryOption(message.timestamp, message.direction, message.text)),
             'Back'
         ];
 
@@ -402,6 +403,30 @@ export class MenuHandler {
 
         const match = choice.match(/\((.*?)\)/);
         return match?.[1] ?? choice;
+    }
+
+    private sortHistoryByMostRecent<T extends { timestamp: number }>(history: T[]): T[] {
+        return [...history].sort((left, right) => {
+            const dayComparison = this.getDayStart(right.timestamp) - this.getDayStart(left.timestamp);
+            if (dayComparison !== 0) {
+                return dayComparison;
+            }
+
+            return this.getTimeOfDay(right.timestamp) - this.getTimeOfDay(left.timestamp);
+        });
+    }
+
+    private getTimeOfDay(timestamp: number): number {
+        const date = new Date(timestamp);
+        return date.getHours() * 60 * 60 * 1000
+            + date.getMinutes() * 60 * 1000
+            + date.getSeconds() * 1000
+            + date.getMilliseconds();
+    }
+
+    private getDayStart(timestamp: number): number {
+        const date = new Date(timestamp);
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
     }
 
     private formatHistoryOption(timestamp: number, direction: string, text: string): string {

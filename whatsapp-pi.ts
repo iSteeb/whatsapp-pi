@@ -7,8 +7,7 @@ import { RecentsService } from './src/services/recents.service.js';
 import { AudioService } from './src/services/audio.service.js';
 import { extractIncomingText } from './src/services/incoming-message.resolver.js';
 import { IncomingMediaService } from './src/services/incoming-media.service.js';
-
-console.log("[WhatsApp-Pi] Extension file loaded by Pi...");
+import { WhatsAppPiLogger } from './src/services/whatsapp-pi.logger.js';
 
 const shutdownState = globalThis as typeof globalThis & {
     __whatsappPiShutdown?: {
@@ -35,7 +34,8 @@ export default function (pi: ExtensionAPI) {
     const whatsappService = new WhatsAppService(sessionManager);
     const recentsService = new RecentsService(sessionManager);
     const audioService = new AudioService();
-    const incomingMediaService = new IncomingMediaService(audioService);
+    const logger = new WhatsAppPiLogger(false);
+    const incomingMediaService = new IncomingMediaService(audioService, logger);
     const menuHandler = new MenuHandler(whatsappService, sessionManager, recentsService);
     let _ctx: ExtensionContext | undefined;
 
@@ -51,7 +51,7 @@ export default function (pi: ExtensionAPI) {
             try {
                 await shutdownState.__whatsappPiShutdown?.stop?.();
             } catch (error) {
-                console.error(`[WhatsApp-Pi] Graceful shutdown failed during ${reason}:`, error);
+                logger.error(`[WhatsApp-Pi] Graceful shutdown failed during ${reason}:`, error);
             }
         };
 
@@ -68,9 +68,10 @@ export default function (pi: ExtensionAPI) {
         const isVerbose = isVerboseFlagSet;
 
         whatsappService.setVerboseMode(isVerbose);
+        logger.setVerbose(isVerbose);
 
         if (isVerbose) {
-            console.log('[WhatsApp-Pi] Verbose mode enabled - Baileys trace logs will be shown');
+            logger.log('[WhatsApp-Pi] Verbose mode enabled - Baileys trace logs will be shown');
         }
         ctx.ui.setStatus('whatsapp', '| WhatsApp: Disconnected');
         whatsappService.setStatusCallback((status) => {
@@ -99,10 +100,16 @@ export default function (pi: ExtensionAPI) {
         const savedStateEntry = [...ctx.sessionManager.getEntries()]
             .reverse()
             .find(entry => entry.type === "custom" && entry.customType === "whatsapp-state");
+        const isWhatsappPiOn = event.reason === "startup" && pi.getFlag("whatsapp-pi-online") === true;
 
         if (savedStateEntry) {
             const data = (savedStateEntry as { data?: any }).data;
-            if (data.status) await sessionManager.setStatus(data.status);
+            if (data.status) {
+                const restoredStatus = data.status === 'connected' && !isWhatsappPiOn
+                    ? 'disconnected'
+                    : data.status;
+                await sessionManager.setStatus(restoredStatus);
+            }
             if (Array.isArray(data.allowList)) {
                 for (const n of data.allowList) {
                     const num = typeof n === "string" ? n : n.number;
@@ -113,7 +120,6 @@ export default function (pi: ExtensionAPI) {
         }
 
         // Check whatsapp flag — only auto-connect on initial startup, not reloads/new sessions
-        const isWhatsappPiOn = event.reason === "startup" && pi.getFlag("whatsapp-pi-online") === true;
         const registered = await sessionManager.isRegistered();
 
         if (isWhatsappPiOn && registered) {
@@ -126,7 +132,7 @@ export default function (pi: ExtensionAPI) {
             const tryConnect = async () => {
                 attempts++;
                 try {
-                    await whatsappService.start();
+                    await whatsappService.start({ allowPairingOnAuthFailure: false });
                 } catch (error) {
                     if (attempts < maxAttempts) {
                         ctx.ui.notify(`WhatsApp: Connection attempt ${attempts} failed. Retrying...`, 'warning');
@@ -153,7 +159,7 @@ export default function (pi: ExtensionAPI) {
             }
         } catch (e) {
             ctx.ui.notify('WhatsApp: pdftotext not found. PDF document support will be limited to storage only.', 'warning');
-            console.warn('[WhatsApp-Pi] Warning: pdftotext not found in system PATH.');
+            logger.warn('[WhatsApp-Pi] Warning: pdftotext not found in system PATH.');
         }
     });
 
@@ -174,14 +180,13 @@ export default function (pi: ExtensionAPI) {
 
         const resolved = extractIncomingText(msg.message);
         if (resolved.kind === 'system') {
-            console.log(`[WhatsApp-Pi] ${pushName} (${sender}): ${resolved.text}`);
+            logger.log(`[WhatsApp-Pi] ${pushName} (${sender}): ${resolved.text}`);
             return;
         }
 
         const { text, imageBuffer, imageMimeType } = await incomingMediaService.process(resolved, pushName);
 
-        // Always log to console so it appears in the TUI log pane
-        console.log(`[WhatsApp-Pi] ${pushName} (${sender}): ${text}`);
+        logger.log(`[WhatsApp-Pi] ${pushName} (${sender}): ${text}`);
 
         // Use a standard delivery for ALL messages to ensure TUI consistency
         if (imageBuffer && imageMimeType) {
@@ -195,7 +200,7 @@ export default function (pi: ExtensionAPI) {
 
         // Handle commands
         if (text.trim().toLowerCase().startsWith('/compact')) {
-            console.log(`[WhatsApp-Pi] Session compact requested by ${pushName}.`);
+            logger.log(`[WhatsApp-Pi] Session compact requested by ${pushName}.`);
 
             if (_ctx) {
                 _ctx.compact();
@@ -205,7 +210,7 @@ export default function (pi: ExtensionAPI) {
         }
 
         if (text.trim().toLowerCase().startsWith('/abort')) {
-            console.log(`[WhatsApp-Pi] Abort requested by ${pushName}.`);
+            logger.log(`[WhatsApp-Pi] Abort requested by ${pushName}.`);
             if (_ctx) {
                 _ctx.abort();
                 await whatsappService.sendMessage(remoteJid!, "Aborted! ✅");
@@ -311,7 +316,7 @@ export default function (pi: ExtensionAPI) {
     });
 
     pi.on("session_shutdown", async () => {
-        console.log("[WhatsApp-Pi] Session shutdown detected. Stopping WhatsApp service...");
+        logger.log("[WhatsApp-Pi] Session shutdown detected. Stopping WhatsApp service...");
         await whatsappService.stop();
     });
 }

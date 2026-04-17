@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { AudioService } from './audio.service.js';
 import type { IncomingResolution } from './incoming-message.resolver.js';
+import { WhatsAppPiLogger } from './whatsapp-pi.logger.js';
 
 export interface ProcessedIncomingContent {
     text: string;
@@ -11,7 +12,10 @@ export interface ProcessedIncomingContent {
 }
 
 export class IncomingMediaService {
-    constructor(private readonly audioService: AudioService) {}
+    constructor(
+        private readonly audioService: AudioService,
+        private readonly logger = new WhatsAppPiLogger(false)
+    ) {}
 
     async process(resolved: IncomingResolution, pushName: string): Promise<ProcessedIncomingContent> {
         if (resolved.kind === 'audio') {
@@ -30,13 +34,13 @@ export class IncomingMediaService {
     }
 
     private async processAudio(audioMessage: any, pushName: string): Promise<ProcessedIncomingContent> {
-        console.log(`[WhatsApp-Pi] Transcribing audio from ${pushName}...`);
+        this.logger.log(`[WhatsApp-Pi] Transcribing audio from ${pushName}...`);
         const transcription = await this.audioService.transcribe(audioMessage);
         return { text: `[Transcribed Audio]: ${transcription}` };
     }
 
     private async processImage(imageMessage: any, fallbackText: string, pushName: string): Promise<ProcessedIncomingContent> {
-        console.log(`[WhatsApp-Pi] Downloading image from ${pushName}...`);
+        this.logger.log(`[WhatsApp-Pi] Downloading image from ${pushName}...`);
 
         try {
             const imageBuffer = await this.downloadMessage(imageMessage, 'image');
@@ -44,7 +48,7 @@ export class IncomingMediaService {
             let imageMimeType = rawMime.toLowerCase().split(';')[0].trim();
             if (imageMimeType === 'image/jpg') imageMimeType = 'image/jpeg';
 
-            console.log(`[WhatsApp-Pi] Image downloaded. MIME: ${imageMimeType} (original: ${rawMime}), Size: ${imageBuffer.length} bytes`);
+            this.logger.log(`[WhatsApp-Pi] Image downloaded. MIME: ${imageMimeType} (original: ${rawMime}), Size: ${imageBuffer.length} bytes`);
 
             return {
                 text: fallbackText || '[Image]',
@@ -52,7 +56,7 @@ export class IncomingMediaService {
                 imageMimeType
             };
         } catch (error) {
-            console.error('[WhatsApp-Pi] Failed to download image:', error);
+            this.logger.error('[WhatsApp-Pi] Failed to download image:', error);
             return { text: '[Image (download failed)]' };
         }
     }
@@ -62,13 +66,13 @@ export class IncomingMediaService {
         const mimeType = documentMessage.mimetype || 'application/octet-stream';
         const fileSize = documentMessage.fileLength ? Number(documentMessage.fileLength) : 0;
 
-        console.log(`[WhatsApp-Pi] Downloading document from ${pushName}: ${fileName}...`);
+        this.logger.log(`[WhatsApp-Pi] Downloading document from ${pushName}: ${fileName}...`);
 
         try {
             const buffer = await this.downloadMessage(documentMessage, 'document');
             const relativePath = await this.saveDocument(fileName, buffer);
 
-            console.log(`[WhatsApp-Pi] Document saved to ${relativePath} (${buffer.length} bytes)`);
+            this.logger.log(`[WhatsApp-Pi] Document saved to ${relativePath} (${buffer.length} bytes)`);
 
             let text = `[Document Received: ${fileName}]\n`
                 + `MIME Type: ${mimeType}\n`
@@ -81,7 +85,7 @@ export class IncomingMediaService {
 
             return { text };
         } catch (error) {
-            console.error('[WhatsApp-Pi] Failed to download document:', error);
+            this.logger.error('[WhatsApp-Pi] Failed to download document:', error);
             return { text: `[Document: ${fileName} (download failed)]` };
         }
     }

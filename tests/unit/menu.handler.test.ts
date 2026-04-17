@@ -34,6 +34,7 @@ const createContext = (choices: {
 
 const createServices = () => {
     const whatsappService = {
+        getEffectiveStatus: vi.fn().mockReturnValue('connected'),
         setQRCodeCallback: vi.fn(),
         start: vi.fn().mockResolvedValue(undefined),
         stop: vi.fn().mockResolvedValue(undefined),
@@ -72,7 +73,7 @@ describe('MenuHandler', () => {
 
     it('starts WhatsApp pairing from the root menu when disconnected', async () => {
         const { whatsappService, sessionManager, recentsService } = createServices();
-        sessionManager.getStatus.mockReturnValue('logged-out');
+        whatsappService.getEffectiveStatus.mockReturnValue('logged-out');
         const ctx = createContext({ selects: ['Connect WhatsApp'] });
         const handler = new MenuHandler(whatsappService as any, sessionManager as any, recentsService as any);
 
@@ -81,6 +82,21 @@ describe('MenuHandler', () => {
         expect(whatsappService.setQRCodeCallback).toHaveBeenCalledOnce();
         expect(whatsappService.start).toHaveBeenCalledOnce();
         expect(ctx.ui.notify).toHaveBeenCalledWith('WhatsApp Pairing Started', 'info');
+    });
+
+    it('uses effective WhatsApp status instead of persisted session status', async () => {
+        const { whatsappService, sessionManager, recentsService } = createServices();
+        sessionManager.getStatus.mockReturnValue('connected');
+        whatsappService.getEffectiveStatus.mockReturnValue('disconnected');
+        const ctx = createContext({ selects: ['Back'] });
+        const handler = new MenuHandler(whatsappService as any, sessionManager as any, recentsService as any);
+
+        await handler.handleCommand(ctx as any);
+
+        expect(ctx.ui.select).toHaveBeenCalledWith('WhatsApp (Status: disconnected)', [
+            'Connect WhatsApp',
+            'Back'
+        ]);
     });
 
     it('disconnects WhatsApp from the root menu when connected', async () => {
@@ -229,9 +245,27 @@ describe('MenuHandler', () => {
         recentsService.getConversationHistory.mockResolvedValue([{
             messageId: 'MSG1',
             senderNumber: '+5511999998888',
-            text: 'a long message that should be truncated in the history option because it is intentionally verbose',
+            text: 'newer day but earlier time',
             direction: 'incoming',
-            timestamp: 1234567890
+            timestamp: new Date(2026, 3, 17, 8, 30, 0).getTime()
+        }, {
+            messageId: 'MSG2',
+            senderNumber: '+5511999998888',
+            text: 'older day but later time that should be truncated in the history option because it is intentionally verbose',
+            direction: 'outgoing',
+            timestamp: new Date(2026, 3, 16, 23, 29, 59).getTime()
+        }, {
+            messageId: 'MSG3',
+            senderNumber: '+5511999998888',
+            text: 'newest day same time',
+            direction: 'incoming',
+            timestamp: new Date(2026, 3, 18, 8, 30, 0).getTime()
+        }, {
+            messageId: 'MSG4',
+            senderNumber: '+5511999998888',
+            text: 'newest day later time',
+            direction: 'outgoing',
+            timestamp: new Date(2026, 3, 18, 21, 45, 0).getTime()
         }]);
         const ctx = createContext({
             selects: [
@@ -251,11 +285,21 @@ describe('MenuHandler', () => {
         expect(recentsService.getConversationHistory).toHaveBeenCalledWith('+5511999998888');
         expect(ctx.ui.select).toHaveBeenCalledWith(
             expect.stringContaining('History • Ana (+5511999998888)'),
-            expect.arrayContaining([
+            [
+                expect.stringContaining('Sent'),
                 expect.stringContaining('Received'),
-                expect.stringContaining('...'),
+                expect.stringContaining('Received'),
+                expect.stringContaining('Sent'),
                 'Back'
-            ])
+            ]
         );
+        const historyOptions = ctx.ui.select.mock.calls.find(([title]) =>
+            String(title).startsWith('History •')
+        )?.[1];
+        expect(historyOptions[0]).toContain('newest day later time');
+        expect(historyOptions[1]).toContain('newest day same time');
+        expect(historyOptions[2]).toContain('newer day but earlier time');
+        expect(historyOptions[3]).toContain('older day but later time');
+        expect(historyOptions[3]).toContain('...');
     });
 });
