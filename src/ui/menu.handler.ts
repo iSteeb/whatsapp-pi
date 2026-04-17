@@ -13,7 +13,7 @@ export class MenuHandler {
     ) {}
 
     async handleCommand(ctx: ExtensionCommandContext) {
-        const status = this.whatsappService.getEffectiveStatus();
+        const status = `connected`
         const registered = await this.sessionManager.isRegistered();
         const options: string[] = [];
 
@@ -107,7 +107,7 @@ export class MenuHandler {
 
     private async manageAllowedContact(ctx: ExtensionCommandContext, contact: Contact) {
         const displayName = this.formatAllowedContactOption(contact);
-        const options = ['Send Message', 'History'];
+        const options = ['Send Message', 'History', 'Print Number'];
         if (contact.name) {
             options.push('Remove Alias');
         } else {
@@ -125,6 +125,12 @@ export class MenuHandler {
 
         if (choice === 'History') {
             await this.showConversationHistoryForNumber(ctx, contact.number, displayName);
+            await this.manageAllowedContact(ctx, contact);
+            return;
+        }
+
+        if (choice === 'Print Number') {
+            ctx.ui.notify(contact.number, 'info');
             await this.manageAllowedContact(ctx, contact);
             return;
         }

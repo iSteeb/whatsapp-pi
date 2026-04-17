@@ -176,6 +176,27 @@ describe('MenuHandler', () => {
         });
     });
 
+    it('prints an allowed contact number to the TUI info console', async () => {
+        const { whatsappService, sessionManager, recentsService } = createServices();
+        sessionManager.getAllowList.mockReturnValue([{ number: '+5511999998888', name: 'Ana' }]);
+        const ctx = createContext({
+            selects: ['Allowed Numbers', 'Ana (+5511999998888)', 'Print Number', 'Back', 'Back', 'Back']
+        });
+        const handler = new MenuHandler(whatsappService as any, sessionManager as any, recentsService as any);
+
+        await handler.handleCommand(ctx as any);
+
+        expect(ctx.ui.select).toHaveBeenCalledWith('Allowed Number • Ana (+5511999998888)', [
+            'Send Message',
+            'History',
+            'Print Number',
+            'Remove Alias',
+            'Remove Number',
+            'Back'
+        ]);
+        expect(ctx.ui.notify).toHaveBeenCalledWith('+5511999998888', 'info');
+    });
+
     it('moves a blocked number to the allowed list using the displayed alias option', async () => {
         const { whatsappService, sessionManager, recentsService } = createServices();
         sessionManager.getIgnoredNumbers.mockReturnValue([{ number: '+5511999998888', name: 'Ana' }]);
@@ -296,10 +317,11 @@ describe('MenuHandler', () => {
         const historyOptions = ctx.ui.select.mock.calls.find(([title]) =>
             String(title).startsWith('History •')
         )?.[1];
-        expect(historyOptions[0]).toContain('newest day later time');
-        expect(historyOptions[1]).toContain('newest day same time');
-        expect(historyOptions[2]).toContain('newer day but earlier time');
-        expect(historyOptions[3]).toContain('older day but later time');
-        expect(historyOptions[3]).toContain('...');
+        expect(historyOptions).toBeDefined();
+        expect(historyOptions![0]).toContain('newest day later time');
+        expect(historyOptions![1]).toContain('newest day same time');
+        expect(historyOptions![2]).toContain('newer day but earlier time');
+        expect(historyOptions![3]).toContain('older day but later time');
+        expect(historyOptions![3]).toContain('...');
     });
 });
