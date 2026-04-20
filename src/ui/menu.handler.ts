@@ -193,7 +193,7 @@ export class MenuHandler {
     }
 
     private async manageBlockList(ctx: ExtensionCommandContext) {
-        const list = [...this.sessionManager.getIgnoredNumbers()].reverse();
+        const list = [...this.sessionManager.getBlockList()].reverse();
 
         if (list.length === 0) {
             ctx.ui.notify('No blocked numbers', 'info');
@@ -217,16 +217,14 @@ export class MenuHandler {
         if (action === 'Allow') {
             const ok = await ctx.ui.confirm('Allow', `Move ${number} to Allowed Numbers?`);
             if (ok) {
-                const list = this.sessionManager.getIgnoredNumbers();
-                const contact = list.find(c => c.number === number);
-                await this.sessionManager.addNumber(number, contact?.name);
+                await this.sessionManager.unblockAndAllow(number);
                 ctx.ui.notify(`${number} moved to Allowed List`, 'info');
             }
             await this.manageBlockList(ctx);
         } else if (action === 'Delete') {
             const ok = await ctx.ui.confirm('Delete', `Remove ${number} from Block List?`);
             if (ok) {
-                await this.sessionManager.removeIgnoredNumber(number);
+                await this.sessionManager.unblockNumber(number);
                 ctx.ui.notify(`${number} removed from Block List`, 'info');
             }
             await this.manageBlockList(ctx);

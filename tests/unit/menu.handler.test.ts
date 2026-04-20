@@ -60,7 +60,10 @@ const createServices = () => {
         removeNumber: vi.fn().mockResolvedValue(undefined),
         setAllowedContactAlias: vi.fn().mockResolvedValue(undefined),
         removeAllowedContactAlias: vi.fn().mockResolvedValue(undefined),
+        getBlockList: vi.fn().mockReturnValue([]),
         getIgnoredNumbers: vi.fn().mockReturnValue([]),
+        unblockNumber: vi.fn().mockResolvedValue(undefined),
+        unblockAndAllow: vi.fn().mockResolvedValue(undefined),
         removeIgnoredNumber: vi.fn().mockResolvedValue(undefined),
         getAllowedContact: vi.fn().mockReturnValue(undefined),
         isAllowed: vi.fn().mockReturnValue(false)
@@ -226,7 +229,7 @@ describe('MenuHandler', () => {
 
     it('moves a blocked number to the allowed list using the displayed alias option', async () => {
         const { whatsappService, sessionManager, recentsService } = createServices();
-        sessionManager.getIgnoredNumbers.mockReturnValue([{ number: '+5511999998888', name: 'Ana' }]);
+        sessionManager.getBlockList.mockReturnValue([{ number: '+5511999998888', name: 'Ana' }]);
         const ctx = createContext({
             selects: ['Blocked Numbers', 'Ana (+5511999998888)', 'Allow', 'Back', 'Back'],
             confirms: [true]
@@ -235,7 +238,7 @@ describe('MenuHandler', () => {
 
         await handler.handleCommand(ctx as any);
 
-        expect(sessionManager.addNumber).toHaveBeenCalledWith('+5511999998888', 'Ana');
+        expect(sessionManager.unblockAndAllow).toHaveBeenCalledWith('+5511999998888');
         expect(ctx.ui.notify).toHaveBeenCalledWith('+5511999998888 moved to Allowed List', 'info');
     });
 
