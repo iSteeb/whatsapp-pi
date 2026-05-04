@@ -136,6 +136,7 @@ export class SessionManager {
     public async saveConfig() {
         const tempPath = `${this.configPath}.${process.pid}.${Date.now()}.tmp`;
         try {
+            this.hasAuthState = this.hasAuthState || await this.hasCredentialsFile();
             const config = {
                 allowList: this.allowList,
                 blockList: this.blockList,

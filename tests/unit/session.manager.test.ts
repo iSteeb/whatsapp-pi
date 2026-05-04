@@ -56,6 +56,17 @@ describe('SessionManager', () => {
         expect(await sessionManager.isRegistered()).toBe(false);
     });
 
+    it('should not save stale missing auth state when credentials exist on disk', async () => {
+        await mkdir(sessionManager.getAuthStateDir(), { recursive: true });
+        await writeFile(join(sessionManager.getAuthStateDir(), 'creds.json'), '{}');
+
+        await sessionManager.setStatus('disconnected');
+
+        const config = JSON.parse(await readFile(join(dataDir, 'config.json'), 'utf-8'));
+        expect(config.hasAuthState).toBe(true);
+        expect(await sessionManager.isRegistered()).toBe(true);
+    });
+
     it('should recover and rewrite a config file with trailing data', async () => {
         const configPath = join(dataDir, 'config.json');
         await writeFile(configPath, [

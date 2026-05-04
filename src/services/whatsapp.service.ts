@@ -72,10 +72,14 @@ interface BoomLikeError {
 }
 
 export class WhatsAppService {
+    private static readonly INITIAL_RECONNECT_DELAY_MS = 5_000;
+    private static readonly MAX_RECONNECT_DELAY_MS = 120_000;
+
     private socket?: WhatsAppSocketLike;
     private sessionManager: SessionManager;
     private messageSender: MessageSender;
     private isReconnecting = false;
+    private reconnectAttempts = 0;
     private verboseMode = false;
     private onIncomingMessageRecorded?: (message: IncomingMessage) => void | Promise<void>;
     private saveCreds?: () => Promise<void>;
@@ -169,6 +173,11 @@ export class WhatsAppService {
             clearTimeout(this.reconnectTimeout);
             this.reconnectTimeout = undefined;
         }
+    }
+
+    private getReconnectDelayMs(): number {
+        const delay = WhatsAppService.INITIAL_RECONNECT_DELAY_MS * (2 ** Math.max(0, this.reconnectAttempts - 1));
+        return Math.min(delay, WhatsAppService.MAX_RECONNECT_DELAY_MS);
     }
 
     private cleanupSocket() {
@@ -304,6 +313,7 @@ export class WhatsAppService {
         }
 
         this.isReconnecting = false;
+        this.reconnectAttempts = 0;
         this.clearReconnectTimeout();
         await this.saveCreds?.();
         await this.sessionManager.markAuthStateAvailable();
@@ -354,6 +364,7 @@ export class WhatsAppService {
             }
             this.cleanupSocket();
             this.isReconnecting = false;
+            this.reconnectAttempts = 0;
             await this.sessionManager.setStatus('disconnected');
             if (!isBadMac) {
                 this.onStatusUpdate?.('| WhatsApp: Disconnected');
@@ -365,19 +376,28 @@ export class WhatsAppService {
             if (this.verboseMode) {
                 console.error('Connection replaced - another instance connected');
             }
+            this.cleanupSocket();
+            this.isReconnecting = false;
+            this.reconnectAttempts = 0;
+            await this.sessionManager.setStatus('disconnected');
             this.onStatusUpdate?.('| WhatsApp: Conflict (Another Instance)');
             return;
         }
 
         if (shouldReconnect && !this.isReconnecting) {
             this.isReconnecting = true;
+            this.reconnectAttempts++;
+            const reconnectDelayMs = this.getReconnectDelayMs();
             this.onStatusUpdate?.('| WhatsApp: Reconnecting...');
             this.clearReconnectTimeout();
+            await this.saveCreds?.();
+            this.cleanupSocket();
             this.reconnectTimeout = setTimeout(() => {
                 this.isReconnecting = false;
                 void this.start(options);
-            }, 3000);
+            }, reconnectDelayMs);
         } else if (!shouldReconnect) {
+            this.reconnectAttempts = 0;
             this.sessionManager.setStatus('logged-out');
             this.onStatusUpdate?.('| WhatsApp: Disconnected');
         }
