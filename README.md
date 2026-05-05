@@ -46,7 +46,7 @@ pi install npm:whatsapp-pi
 pi
 ```
 
-To automatically connect to WhatsApp on startup (if you are already authenticated):
+After connecting WhatsApp once from the menu and scanning the QR code, you can start Pi with auto-connect enabled:
 ```bash
 pi --whatsapp-pi-online
 ```
@@ -72,6 +72,11 @@ pi -e whatsapp-pi.ts
 For verbose mode (shows Baileys trace logs for debugging):
 ```bash
 pi -e whatsapp-pi.ts --verbose
+```
+
+To test startup auto-connect locally after you have already paired WhatsApp:
+```bash
+pi -e whatsapp-pi.ts --whatsapp-pi-online
 ```
 
 ## Commands
