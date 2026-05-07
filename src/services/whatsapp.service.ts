@@ -6,7 +6,7 @@ import {
 } from '@whiskeysockets/baileys';
 import P from 'pino';
 import { SessionManager } from './session.manager.js';
-import { IncomingMessage, SessionStatus } from '../models/whatsapp.types.js';
+import { IncomingMessage, OutgoingContent, SessionStatus } from '../models/whatsapp.types.js';
 import { MessageSender } from './message.sender.js';
 import { installBaileysConsoleFilter } from './baileys-console-filter.js';
 
@@ -33,6 +33,9 @@ interface IncomingMessageKey {
 interface IncomingMessageContent {
     conversation?: string;
     extendedTextMessage?: { text?: string };
+    imageMessage?: { caption?: string };
+    videoMessage?: { caption?: string };
+    documentMessage?: { caption?: string };
 }
 
 interface IncomingMessageLike {
@@ -55,7 +58,7 @@ interface WhatsAppSocketLike {
     };
     end(reason?: unknown): void;
     logout(): Promise<void>;
-    sendMessage(jid: string, content: { text: string }): Promise<{ key?: { id?: string } } | undefined>;
+    sendMessage(jid: string, content: any): Promise<{ key?: { id?: string } } | undefined>;
     sendPresenceUpdate(presence: 'composing' | 'recording' | 'paused', jid: string): Promise<void>;
     readMessages(messages: Array<{ remoteJid: string; id: string; fromMe: boolean }>): Promise<void>;
 }
@@ -89,6 +92,11 @@ export class WhatsAppService {
     private onMessage?: (m: MessagesUpsertEvent) => void;
     private onStatusUpdate?: (status: string) => void;
     private lastRemoteJid: string | null = null;
+    // Map of digits-only number → canonical JID (with correct @lid or @s.whatsapp.net domain),
+    // populated from every incoming message. This is the authoritative source for
+    // outbound routing — we must never construct a JID from scratch because business
+    // accounts use @lid identifiers that are NOT the same as phone numbers.
+    private jidByDigits = new Map<string, string>();
 
     constructor(sessionManager: SessionManager) {
         this.sessionManager = sessionManager;
@@ -404,7 +412,16 @@ export class WhatsAppService {
     }
 
     private extractText(message: IncomingMessageContent | undefined): string {
-        return message?.conversation || message?.extendedTextMessage?.text || '';
+        // IMPORTANT: captions on media messages must be included, otherwise the
+        // π loop-prevention suffix is invisible for image/video/document sends
+        // and fromMe echoes of outgoing attachments leak into the agent as
+        // "new" incoming messages.
+        return message?.conversation
+            || message?.extendedTextMessage?.text
+            || message?.imageMessage?.caption
+            || message?.videoMessage?.caption
+            || message?.documentMessage?.caption
+            || '';
     }
 
     private isPiGeneratedMessage(text: string): boolean {
@@ -470,6 +487,7 @@ export class WhatsAppService {
         }
 
         this.lastRemoteJid = remoteJid;
+        this.rememberJid(remoteJid);
         this.onMessage?.(payload);
     }
 
@@ -489,6 +507,31 @@ export class WhatsAppService {
         return this.lastRemoteJid;
     }
 
+    /** Record a JID we have actually seen, keyed by its digits-only form. */
+    private rememberJid(jid: string): void {
+        const digits = jid.split('@')[0]?.split(':')[0];
+        if (digits && /^\d+$/.test(digits)) {
+            this.jidByDigits.set(digits, jid);
+        }
+    }
+
+    /**
+     * Resolve a user-supplied recipient (digits, +-prefixed number, or full JID)
+     * into the canonical JID we have seen for that party. Returns null if we have
+     * no record — caller decides whether to fall back to @s.whatsapp.net.
+     */
+    public resolveKnownJid(recipient: string): string | null {
+        // Already a full JID
+        if (recipient.includes('@')) {
+            return recipient;
+        }
+        const digits = recipient.startsWith('+') ? recipient.slice(1) : recipient;
+        if (!/^\d+$/.test(digits)) {
+            return null;
+        }
+        return this.jidByDigits.get(digits) ?? null;
+    }
+
     private getActiveSocket(): WhatsAppSocketLike | null {
         if (!this.socket || this.getStatus() !== 'connected') {
             return null;
@@ -503,7 +546,7 @@ export class WhatsAppService {
 
         const result = await this.messageSender.send({
             recipientJid: jid,
-            text: text
+            content: { kind: 'text', text }
         });
 
         // After sending, we can stop the typing indicator
@@ -511,6 +554,23 @@ export class WhatsAppService {
 
         if (!result.success) {
             console.error(`Failed to send message to ${jid}: ${result.error}`);
+        }
+
+        return result;
+    }
+
+    async sendAttachment(jid: string, content: OutgoingContent) {
+        await this.sendPresence(jid, 'composing');
+
+        const result = await this.messageSender.send({
+            recipientJid: jid,
+            content
+        });
+
+        await this.sendPresence(jid, 'paused');
+
+        if (!result.success) {
+            console.error(`Failed to send attachment to ${jid}: ${result.error}`);
         }
 
         return result;

@@ -18,9 +18,20 @@ export interface IncomingMessage {
     timestamp: number;
 }
 
+/** Content kind for outgoing WhatsApp messages */
+export type OutgoingKind = 'text' | 'image' | 'video' | 'audio' | 'document';
+
+/** Union of content payloads the MessageSender can deliver */
+export type OutgoingContent =
+    | { kind: 'text'; text: string }
+    | { kind: 'image'; buffer: Buffer; caption?: string }
+    | { kind: 'video'; buffer: Buffer; caption?: string; mimetype?: string }
+    | { kind: 'audio'; buffer: Buffer; mimetype?: string }
+    | { kind: 'document'; buffer: Buffer; mimetype: string; fileName?: string; caption?: string };
+
 export interface MessageRequest {
     recipientJid: string;
-    text: string;
+    content: OutgoingContent;
     options?: {
         maxRetries?: number;
         priority?: 'high' | 'normal';

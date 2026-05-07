@@ -23,7 +23,7 @@ describe('MessageSender', () => {
 
         await expect(sender.send({
             recipientJid: '5511999998888@s.whatsapp.net',
-            text: 'hello'
+            content: { kind: 'text', text: 'hello' }
         })).resolves.toEqual({
             success: true,
             messageId: 'MSG123',
@@ -35,6 +35,50 @@ describe('MessageSender', () => {
         });
     });
 
+    it('sends image attachment with branded caption', async () => {
+        const sendMessage = vi.fn().mockResolvedValue({ key: { id: 'IMG123' } });
+        whatsappService.getSocket.mockReturnValue({ sendMessage });
+        const sender = new MessageSender(whatsappService as any);
+        const fakeBuffer = Buffer.from('fake-image-data');
+
+        await expect(sender.send({
+            recipientJid: '5511999998888@s.whatsapp.net',
+            content: { kind: 'image', buffer: fakeBuffer, caption: 'Here is the chart' }
+        })).resolves.toEqual({
+            success: true,
+            messageId: 'IMG123',
+            attempts: 1
+        });
+
+        expect(sendMessage).toHaveBeenCalledWith('5511999998888@s.whatsapp.net', {
+            image: fakeBuffer,
+            caption: 'Here is the chart π'
+        });
+    });
+
+    it('sends document attachment without caption (no π suffix)', async () => {
+        const sendMessage = vi.fn().mockResolvedValue({ key: { id: 'DOC123' } });
+        whatsappService.getSocket.mockReturnValue({ sendMessage });
+        const sender = new MessageSender(whatsappService as any);
+        const fakeBuffer = Buffer.from('fake-pdf-data');
+
+        await expect(sender.send({
+            recipientJid: '5511999998888@s.whatsapp.net',
+            content: { kind: 'document', buffer: fakeBuffer, mimetype: 'application/pdf', fileName: 'report.pdf' }
+        })).resolves.toEqual({
+            success: true,
+            messageId: 'DOC123',
+            attempts: 1
+        });
+
+        expect(sendMessage).toHaveBeenCalledWith('5511999998888@s.whatsapp.net', {
+            document: fakeBuffer,
+            mimetype: 'application/pdf',
+            fileName: 'report.pdf',
+            caption: undefined
+        });
+    });
+
     it('returns failure when no socket is available and retries are exhausted', async () => {
         vi.useFakeTimers();
         whatsappService.getSocket.mockReturnValue(undefined);
@@ -42,7 +86,7 @@ describe('MessageSender', () => {
 
         const resultPromise = sender.send({
             recipientJid: '5511999998888@s.whatsapp.net',
-            text: 'hello',
+            content: { kind: 'text', text: 'hello' },
             options: { maxRetries: 2 }
         });
 
@@ -63,7 +107,7 @@ describe('MessageSender', () => {
 
         const resultPromise = sender.send({
             recipientJid: '5511999998888@s.whatsapp.net',
-            text: 'hello',
+            content: { kind: 'text', text: 'hello' },
             options: { maxRetries: 2 }
         });
 

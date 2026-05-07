@@ -1,5 +1,42 @@
 import { WhatsAppService } from './whatsapp.service.js';
-import { MessageRequest, MessageResult, WhatsAppError } from '../models/whatsapp.types.js';
+import { MessageRequest, MessageResult, OutgoingContent, WhatsAppError } from '../models/whatsapp.types.js';
+
+/**
+ * Appends the π suffix used for loop-prevention to the appropriate text field.
+ * - text → appended to text string
+ * - image/video/document with caption → appended to caption
+ * - audio or media without caption → no suffix (audio has no caption field;
+ *   loop prevention relies on the allow-list and fromMe filtering instead)
+ */
+function applyPiSuffix(content: OutgoingContent): any {
+    switch (content.kind) {
+        case 'text':
+            return { text: `${content.text} π` };
+        case 'image':
+            return {
+                image: content.buffer,
+                caption: content.caption ? `${content.caption} π` : undefined
+            };
+        case 'video':
+            return {
+                video: content.buffer,
+                caption: content.caption ? `${content.caption} π` : undefined,
+                ...(content.mimetype ? { mimetype: content.mimetype } : {})
+            };
+        case 'audio':
+            return {
+                audio: content.buffer,
+                ...(content.mimetype ? { mimetype: content.mimetype } : {})
+            };
+        case 'document':
+            return {
+                document: content.buffer,
+                mimetype: content.mimetype,
+                fileName: content.fileName,
+                caption: content.caption ? `${content.caption} π` : undefined
+            };
+    }
+}
 
 export class MessageSender {
     private whatsappService: WhatsAppService;
@@ -53,11 +90,11 @@ export class MessageSender {
                     throw new WhatsAppError('SOCKET_NOT_INIT', 'WhatsApp socket not initialized');
                 }
 
-                // 3. Send the message
-                // Note: Branding π is applied here to ensure consistency
-                const response = await socket.sendMessage(request.recipientJid, { 
-                    text: `${request.text} π` 
-                });
+                // 3. Build the Baileys content payload (π suffix applied inside)
+                const baileysContent = applyPiSuffix(request.content);
+
+                // 4. Send the message
+                const response = await socket.sendMessage(request.recipientJid, baileysContent);
 
                 return {
                     success: true,
@@ -73,7 +110,7 @@ export class MessageSender {
                     break;
                 }
 
-                // 4. Backoff before retry
+                // 5. Backoff before retry
                 if (attempts < maxRetries) {
                     const backoff = Math.pow(2, attempts) * 1000;
                     if (this.whatsappService.isVerbose()) {

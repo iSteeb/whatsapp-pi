@@ -8,6 +8,8 @@ import { AudioService } from './src/services/audio.service.js';
 import { extractIncomingText } from './src/services/incoming-message.resolver.js';
 import { IncomingMediaService } from './src/services/incoming-media.service.js';
 import { WhatsAppPiLogger } from './src/services/whatsapp-pi.logger.js';
+import { validateAndReadAttachment } from './src/services/attachment.helper.js';
+import type { OutgoingKind } from './src/models/whatsapp.types.js';
 
 const shutdownState = globalThis as typeof globalThis & {
     __whatsappPiShutdown?: {
@@ -221,14 +223,32 @@ export default function (pi: ExtensionAPI) {
         
     });
 
+    /**
+     * Resolve a recipient string (digits, +-number, or full JID) into the canonical
+     * JID we have actually observed for that party. Business accounts use @lid
+     * identifiers that cannot be constructed from the phone number alone, so we
+     * must look up the JID we saw on the inbound path. Falls back to
+     * @s.whatsapp.net only when nothing is known (and the result warns the caller).
+     */
+    const resolveRecipientJid = (recipient: string): { jid: string; warning?: string } => {
+        const known = whatsappService.resolveKnownJid(recipient);
+        if (known) return { jid: known };
+        if (recipient.includes('@')) return { jid: recipient };
+        const digits = recipient.startsWith('+') ? recipient.slice(1) : recipient;
+        return {
+            jid: `${digits}@s.whatsapp.net`,
+            warning: `No previously-seen JID for ${recipient}; falling back to ${digits}@s.whatsapp.net. For business accounts this may deliver to a ghost chat. Prefer a number that has already messaged this session.`
+        };
+    };
+
     // Register send_wa_message tool (LLM-callable)
     pi.registerTool({
         name: "send_wa_message",
         label: "Send WhatsApp Message",
-        description: "Send a WhatsApp message to a contact identified by their JID (e.g. 5511999998888@s.whatsapp.net). Returns a JSON result with success status and messageId or error.",
-        promptSnippet: "send_wa_message(jid, message) - Send a WhatsApp message to a contact by JID",
+        description: "Send a WhatsApp text message to a contact. Pass the recipient as the number shown in parentheses after their name on incoming messages (e.g. '207563001962646' from 'Message from steven. (207563001962646): hi'). Full JIDs and +-prefixed numbers are also accepted. Returns JSON with success status, messageId or error, and optional warning.",
+        promptSnippet: "send_wa_message(recipient, message) - Send a WhatsApp text message. `recipient` is the number shown in parentheses on the incoming message (e.g. '207563001962646'), a full JID, or a +-prefixed E.164 number.",
         parameters: Type.Object({
-            jid: Type.String({ minLength: 1, description: "WhatsApp JID of the recipient, e.g. 5511999998888@s.whatsapp.net" }),
+            recipient: Type.String({ minLength: 1, description: "Recipient identifier: the digits from the incoming message header (preferred), a full JID, or a +-prefixed E.164 number" }),
             message: Type.String({ minLength: 1, description: "Plain-text message content to send" })
         }),
         async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
@@ -240,6 +260,8 @@ export default function (pi: ExtensionAPI) {
                 };
             }
 
+            const { jid, warning } = resolveRecipientJid(params.recipient);
+
             const formattedMessage = params.message
                 .split('\n')
                 .map((line) => `    ${line}`)
@@ -247,31 +269,33 @@ export default function (pi: ExtensionAPI) {
 
             console.log([
                 '[WhatsApp-Pi] Outgoing WhatsApp message',
-                `  To: ${params.jid}`,
+                `  Recipient: ${params.recipient}`,
+                `  Resolved JID: ${jid}`,
+                warning ? `  Warning: ${warning}` : null,
                 '  Message:',
                 formattedMessage
-            ].join('\n'));
+            ].filter(Boolean).join('\n'));
 
-            const result = await whatsappService.sendMessage(params.jid, params.message);
+            const result = await whatsappService.sendMessage(jid, params.message);
 
             if (result.success) {
                 await recentsService.recordMessage({
                     messageId: result.messageId!,
-                    senderNumber: `+${params.jid.split('@')[0]}`,
+                    senderNumber: `+${jid.split('@')[0]}`,
                     text: params.message,
                     direction: 'outgoing',
                     timestamp: Date.now()
                 });
                 console.log([
                     '[WhatsApp-Pi] Outgoing WhatsApp message result',
-                    `  To: ${params.jid}`,
+                    `  To: ${jid}`,
                     '  Status: sent',
                     `  MessageId: ${result.messageId ?? 'unknown'}`
                 ].join('\n'));
             } else {
                 console.log([
                     '[WhatsApp-Pi] Outgoing WhatsApp message result',
-                    `  To: ${params.jid}`,
+                    `  To: ${jid}`,
                     '  Status: failed',
                     `  Error: ${result.error ?? 'unknown error'}`
                 ].join('\n'));
@@ -280,7 +304,123 @@ export default function (pi: ExtensionAPI) {
             return {
                 isError: !result.success,
                 details: undefined,
-                content: [{ type: "text" as const, text: JSON.stringify({ success: result.success, messageId: result.messageId, error: result.error, attempts: result.attempts }) }]
+                content: [{ type: "text" as const, text: JSON.stringify({ success: result.success, messageId: result.messageId, resolvedJid: jid, error: result.error, warning, attempts: result.attempts }) }]
+            };
+        }
+    });
+
+    // Register send_wa_attachment tool (LLM-callable)
+    pi.registerTool({
+        name: "send_wa_attachment",
+        label: "Send WhatsApp Attachment",
+        description: "Send a file as a WhatsApp attachment (image, video, audio, or document). Pass the recipient as the number shown in parentheses after their name on incoming messages (e.g. '207563001962646' from 'Message from steven. (207563001962646): hi'). Full JIDs and +-prefixed numbers are also accepted. Returns JSON with success, messageId or error, resolvedJid, and optional warning.",
+        promptSnippet: "send_wa_attachment(recipient, filePath, caption?, kind?) - Send a file attachment. `recipient` is the number shown in parentheses on the incoming message (e.g. '207563001962646'), a full JID, or a +-prefixed E.164 number.",
+        parameters: Type.Object({
+            recipient: Type.String({ minLength: 1, description: "Recipient identifier: the digits from the incoming message header (preferred), a full JID, or a +-prefixed E.164 number" }),
+            filePath: Type.String({ minLength: 1, description: "Absolute or cwd-relative path to the file to send" }),
+            caption: Type.Optional(Type.String({ description: "Optional text caption for the attachment (supported for images, videos, and documents)" })),
+            fileName: Type.Optional(Type.String({ description: "Override the displayed filename (documents only). Defaults to the file's basename." })),
+            mimeType: Type.Optional(Type.String({ description: "Override MIME type (e.g. application/pdf). Defaults to auto-detection from file extension." })),
+            kind: Type.Optional(Type.Union([
+                Type.Literal('auto'),
+                Type.Literal('image'),
+                Type.Literal('video'),
+                Type.Literal('audio'),
+                Type.Literal('document')
+            ], { description: "Force the WhatsApp message kind. 'auto' (default) resolves from MIME type: image/* → image, video/* → video, audio/* → audio, everything else → document.", default: 'auto' }))
+        }),
+        async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
+            if (whatsappService.getStatus() !== 'connected') {
+                return {
+                    isError: true,
+                    details: undefined,
+                    content: [{ type: "text" as const, text: JSON.stringify({ success: false, error: "WhatsApp not connected", attempts: 0 }) }]
+                };
+            }
+
+            const { jid, warning } = resolveRecipientJid(params.recipient);
+
+            const kindOverride = (params.kind && params.kind !== 'auto') ? params.kind as OutgoingKind : undefined;
+            const validation = await validateAndReadAttachment(params.filePath, {
+                kind: kindOverride,
+                mimeType: params.mimeType,
+                fileName: params.fileName
+            });
+
+            if (!validation.ok) {
+                return {
+                    isError: true,
+                    details: undefined,
+                    content: [{ type: "text" as const, text: JSON.stringify({ success: false, error: validation.error, attempts: 0 }) }]
+                };
+            }
+
+            const { buffer, mimeType, kind, fileName, size } = validation.value;
+
+            console.log([
+                '[WhatsApp-Pi] Outgoing WhatsApp attachment',
+                `  Recipient: ${params.recipient}`,
+                `  Resolved JID: ${jid}`,
+                warning ? `  Warning: ${warning}` : null,
+                `  File: ${params.filePath}`,
+                `  Kind: ${kind}`,
+                `  MIME: ${mimeType}`,
+                `  Size: ${size} bytes`,
+                `  FileName: ${fileName}`,
+                params.caption ? `  Caption: ${params.caption}` : null
+            ].filter(Boolean).join('\n'));
+
+            // Build OutgoingContent based on kind
+            let content;
+            switch (kind) {
+                case 'image':
+                    content = { kind: 'image' as const, buffer, caption: params.caption };
+                    break;
+                case 'video':
+                    content = { kind: 'video' as const, buffer, caption: params.caption, mimetype: mimeType };
+                    break;
+                case 'audio':
+                    content = { kind: 'audio' as const, buffer, mimetype: mimeType };
+                    break;
+                case 'document':
+                    content = { kind: 'document' as const, buffer, mimetype: mimeType, fileName, caption: params.caption };
+                    break;
+                default:
+                    content = { kind: 'document' as const, buffer, mimetype: mimeType, fileName, caption: params.caption };
+            }
+
+            const result = await whatsappService.sendAttachment(jid, content);
+
+            if (result.success) {
+                const recentsText = params.caption
+                    ? `[Attachment: ${fileName}] ${params.caption}`
+                    : `[Attachment: ${fileName}]`;
+                await recentsService.recordMessage({
+                    messageId: result.messageId!,
+                    senderNumber: `+${jid.split('@')[0]}`,
+                    text: recentsText,
+                    direction: 'outgoing',
+                    timestamp: Date.now()
+                });
+                console.log([
+                    '[WhatsApp-Pi] Outgoing WhatsApp attachment result',
+                    `  To: ${jid}`,
+                    '  Status: sent',
+                    `  MessageId: ${result.messageId ?? 'unknown'}`
+                ].join('\n'));
+            } else {
+                console.log([
+                    '[WhatsApp-Pi] Outgoing WhatsApp attachment result',
+                    `  To: ${jid}`,
+                    '  Status: failed',
+                    `  Error: ${result.error ?? 'unknown error'}`
+                ].join('\n'));
+            }
+
+            return {
+                isError: !result.success,
+                details: undefined,
+                content: [{ type: "text" as const, text: JSON.stringify({ success: result.success, messageId: result.messageId, resolvedJid: jid, error: result.error, warning, attempts: result.attempts }) }]
             };
         }
     });
